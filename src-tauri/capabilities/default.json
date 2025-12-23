@@ -2,7 +2,9 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Capability for the main window",
-  "webviews": ["oauth"],
+  "webviews": [
+    "oauth"
+  ],
   "windows": [
     "main",
     "oauth"
@@ -31,6 +33,7 @@
           "url": "https://*.enterprise.slack.com"
         }
       ]
-    }
+    },
+    "websocket:default"
   ]
 }

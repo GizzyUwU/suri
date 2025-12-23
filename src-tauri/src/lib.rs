@@ -25,26 +25,7 @@ async fn oauth(app_handle: tauri::AppHandle, url: String) -> Result<String, Stri
     let parsed_url = Url::parse(&url).map_err(|e| e.to_string())?;
     let (result_tx, result_rx) = tokio::sync::oneshot::channel::<String>();
     let result_tx = Arc::new(Mutex::new(Some(result_tx)));
-
-    const SCRAPING_SCRIPT: &str = r#"
-    (async () => {
-      const poll = setInterval(async () => {
-        const localConfig = localStorage.getItem("localConfig_v2");
-        if (!localConfig) return;
-
-        document.body.innerHTML = "
-            Local Config exists in Local Storage. Attempting to send to main window...
-        ";
-        const invoke = window.__TAURI__.core.invoke;
-        const result = await invoke("local_config_handler", { data: { localConfig } });
-
-        if (result === "data_received") {
-            clearInterval(poll);
-            return;
-        } else return;
-      }, 100);
-    })();
-    "#;
+    const SCRAPING_SCRIPT: &str = include_str!("scrape.js");
 
     WebviewWindowBuilder::new(&app_handle, "oauth", WebviewUrl::External(parsed_url))
         .initialization_script(SCRAPING_SCRIPT)
@@ -87,6 +68,7 @@ pub fn run() {
     gpu::disable_dma();
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_websocket::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![oauth, local_config_handler])
