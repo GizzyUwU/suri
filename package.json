@@ -1,0 +1,32 @@
+{
+  "name": "suri",
+  "version": "0.1.0",
+  "description": "",
+  "type": "module",
+  "scripts": {
+    "start": "vite",
+    "dev-server": "vite --host",
+    "dev": "tauri dev",
+    "build:ui": "vite build",
+    "build": "NO_STRIP=true tauri build",
+    "serve": "vite preview",
+    "tauri": "tauri"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@solid-primitives/storage": "^4.3.3",
+    "@solidjs/router": "^0.15.4",
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-http": "~2",
+    "@tauri-apps/plugin-opener": "^2",
+    "axios": "^1.13.2",
+    "axios-tauri-api-adapter": "^2.0.6",
+    "solid-js": "^1.9.3"
+  },
+  "devDependencies": {
+    "typescript": "~5.6.2",
+    "vite": "^6.0.3",
+    "vite-plugin-solid": "^2.11.0",
+    "@tauri-apps/cli": "^2"
+  }
+}

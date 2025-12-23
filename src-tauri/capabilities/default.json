@@ -1,0 +1,36 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Capability for the main window",
+  "webviews": ["oauth"],
+  "windows": [
+    "main",
+    "oauth"
+  ],
+  "permissions": [
+    "core:default",
+    "opener:default",
+    "core:event:allow-emit-to",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    {
+      "identifier": "core:event:allow-emit",
+      "allow": [
+        {
+          "URL": "https://example.com/"
+        }
+      ]
+    },
+    {
+      "identifier": "http:default",
+      "allow": [
+        {
+          "url": "https://*.slack.com"
+        },
+        {
+          "url": "https://*.enterprise.slack.com"
+        }
+      ]
+    }
+  ]
+}
