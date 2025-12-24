@@ -34,6 +34,10 @@
         }
       ]
     },
-    "websocket:default"
+    "websocket:default",
+    "store:default",
+    "keyring:allow-get-password",
+    "keyring:allow-set-password",
+    "keyring:allow-delete-password"
   ]
 }

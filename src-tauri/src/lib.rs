@@ -1,6 +1,8 @@
+use serde::Serialize;
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 use url::Url;
+use users::{get_current_uid, get_user_by_uid};
 mod gpu;
 
 #[tauri::command]
@@ -62,16 +64,39 @@ async fn oauth(app_handle: tauri::AppHandle, url: String) -> Result<String, Stri
     result_rx.await.map_err(|e| e.to_string())
 }
 
+#[derive(Serialize)]
+struct SystemUser {
+    uid: u32,
+    name: String,
+    primary_group: u32,
+}
+
+#[tauri::command]
+async fn system_user() -> Result<SystemUser, String> {
+    let user = get_user_by_uid(get_current_uid()).ok_or("Failed to get current system user")?;
+    Ok(SystemUser {
+        uid: user.uid(),
+        name: user.name().to_string_lossy().into_owned(),
+        primary_group: user.primary_group_id(),
+    })
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     #[cfg(target_os = "linux")]
     gpu::disable_dma();
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_websocket::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![oauth, local_config_handler])
+        .plugin(tauri_plugin_keyring::init())
+        .invoke_handler(tauri::generate_handler![
+            oauth,
+            local_config_handler,
+            system_user
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

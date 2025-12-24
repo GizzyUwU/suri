@@ -2,10 +2,13 @@ import { createSignal, Show, onMount } from "solid-js";
 import { makePersisted } from "@solid-primitives/storage";
 import { useNavigate } from "@solidjs/router";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { SafeStore } from "../lib/safeStore";
+import { deletePassword, getPassword, setPassword } from "tauri-plugin-keyring-api";
 
 export default function Login() {
   const nav = useNavigate();
-  const [continu, setContinu] = createSignal<boolean>(false)
+  const [continu, setContinu] = createSignal<boolean>(false);
+  const [data, setData] = createSignal<SafeStore | null>(null)
   const [token, setTokenStore] = makePersisted(createSignal<string>(""), {
     name: "d-token",
     storage: sessionStorage,
@@ -20,15 +23,54 @@ export default function Login() {
   const [url, setUrl] = createSignal<string>("");
 
   onMount(async () => {
-    if(localConf() && token()) {
+    const user: {
+      uid: number;
+      name: string;
+      primary_group: number;
+    } = await window.__TAURI__.core.invoke("system_user");
+
+    let key = await getPassword("suri", user.name);
+    if (!key) {
+      const genKey = await crypto.subtle.generateKey(
+        {
+          name: "AES-GCM",
+          length: 256,
+        },
+        true,
+        ["encrypt", "decrypt"]
+      );
+
+      const rawKey = await crypto.subtle.exportKey("raw", genKey);
+      const hexKey = Array.from(new Uint8Array(rawKey))
+        .map(b => b.toString(16).padStart(2, "0"))
+        .join("");
+
+      setPassword("suri", user.name, hexKey)
+      key = hexKey;
+    }
+
+    const store = await SafeStore.use(key, user.name);
+    setData(store);
+    if ((store?.get("d-token") && store?.get("d-token").length > 0) && (store?.get("lConfig") && store.get("lConfig").length > 0)) {
+      const dToken = data()?.get("d-token");
+      const lConfig = data()?.get("lConfig");
+      setLocalConfig(lConfig);
+      setTokenStore(dToken);
+      return nav("/authed");
+    }
+
+    if (localConf() && token()) {
       return nav("/authed")
     }
     const appWebview = getCurrentWebviewWindow();
     appWebview.once<string>("slack-local-config", (event) => {
       setLocalConfig(event.payload);
-      const check = setInterval(() => {
-        clearInterval(check)
+      const check = setInterval(async () => {
         if (token()) {
+          clearInterval(check)
+          data()?.set("d-token", token());
+          data()?.set("lConfig", event.payload)
+          await data()?.save();
           return nav("/authed")
         }
       }, 500)
