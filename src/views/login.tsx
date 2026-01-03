@@ -7,7 +7,7 @@ import { getPassword, setPassword } from "tauri-plugin-keyring-api";
 
 export default function Login() {
   const nav = useNavigate();
-  window.addEventListener('unload', function (e) {})
+  window.addEventListener('unload', function () { })
   const [continu, setContinu] = createSignal<boolean>(false);
   const [data, setData] = createSignal<SafeStore | null>(null)
   const [token, setTokenStore] = makePersisted(createSignal<string>(""), {
@@ -50,6 +50,7 @@ export default function Login() {
       key = hexKey;
     }
 
+    console.log("e")
     const store = await SafeStore.use(key, user.name);
     setData(store);
     if ((store?.get("d-token") && store?.get("d-token").length > 0) && (store?.get("lConfig") && store.get("lConfig").length > 0)) {
@@ -61,10 +62,13 @@ export default function Login() {
     }
 
     if (localConf() && token()) {
+      console.log("a")
       return nav("/authed")
     }
     const appWebview = getCurrentWebviewWindow();
-    const unlisten = await appWebview.once<string>("slack-local-config", (event) => {
+    console.log("d")
+    await appWebview.once<string>("slack-local-config", (event) => {
+      console.log("c")
       setLocalConfig(event.payload);
       const check = setInterval(async () => {
         if (token()) {
@@ -72,18 +76,11 @@ export default function Login() {
           data()?.set("d-token", token());
           data()?.set("lConfig", event.payload)
           await data()?.save();
-          return nav("/authed", { replace: true })
+          console.log("b")
+          return nav("/authed")
         }
       }, 500)
     });
-
-    window.addEventListener('unload', () => {
-      unlisten()
-    });
-
-    return () => {
-      unlisten();
-    };
   });
 
   return (
@@ -115,7 +112,7 @@ export default function Login() {
               if (!err.message.includes("Couldn't find callback id")) return "";
               return "";
             }) as string;
-            console.log("balls");
+            console.log("balls", token);
             setTokenStore(token);
           }}
         >

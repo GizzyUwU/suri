@@ -14,20 +14,18 @@
   <div id="root"></div>
 
   <script>
-    const originalWarn = console.warn;
-    console.warn = (...args) => {
-      if (
-        args.length > 0 &&
-        typeof args[0] === "string" &&
-        args[0].includes("Couldn't find callback id")
-      ) {
-        return;
-      }
+    // const originalWarn = console.warn;
+    // console.warn = (...args) => {
+    //   if (
+    //     args.length > 0 &&
+    //     typeof args[0] === "string" &&
+    //     args[0].includes("Couldn't find callback id")
+    //   ) {
+    //     return;
+    //   }
 
-      originalWarn(...args);
-    };
-
-    window.addEventListener('unload', function (e) { })
+    //   originalWarn(...args);
+    // };
   </script>
   <script src="/src/index.tsx" type="module"></script>
 </body>

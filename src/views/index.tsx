@@ -6,7 +6,6 @@ import { createStore } from "solid-js/store";
 
 export default function Index() {
   const nav = useNavigate();
-  window.addEventListener("unload", () => { });
   let messagesList: HTMLUListElement | undefined;
   const [token] = makePersisted(createSignal<string>(""), {
     name: "d-token",
@@ -77,41 +76,8 @@ export default function Index() {
     }
   };
 
-  window.addEventListener("keydown", (e) => {
-    if (
-      (e.ctrlKey || e.metaKey) &&
-      e.key.toLowerCase() === "r"
-    ) {
-      console.log("grrr")
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      if (import.meta.hot) {
-        console.log("kys")
-        import.meta.hot.invalidate();
-      } else {
-        console.warn("HMR not available");
-      }
-    }
-  });
-
-
   onMount(async () => {
     if (!token() || !localConfig()) return nav("/");
-    const currentWindow = await window.__TAURI__.window.getCurrentWindow();
-    window.__TAURI_EVENT_PLUGIN_INTERNALS__.unregisterListener
-    const unlistenClose = await currentWindow.onCloseRequested(async () => {
-      const client = state.slackAPI;
-      if (client) {
-        await client.destroy();
-      }
-    });
-
-    const unlistenDestroyed = await currentWindow.once("tauri://destroyed", async () => {
-      const client = state.slackAPI;
-      if (client) {
-        await client.destroy();
-      }
-    });
     const data = JSON.parse(localConfig());
     setState("localData", data)
     const workspace = data.teams[data.lastActiveTeamId];
