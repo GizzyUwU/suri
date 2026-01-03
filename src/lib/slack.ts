@@ -1,5 +1,10 @@
 import { fetch } from "@tauri-apps/plugin-http";
 import WebSocket from '@tauri-apps/plugin-websocket';
+import { RichTextBlock } from "@slack/web-api";
+type Listener = {
+  handler: (data: any) => void;
+  options?: Record<string, any>;
+};
 
 export class Slack {
   private apiUrl: string;
@@ -8,8 +13,12 @@ export class Slack {
   private user: Record<string, any> | null = null;
   private ready: Promise<void>;
   private ws: WebSocket | null = null;
-  private listeners: Map<string, Set<(data: any) => void>> = new Map();
+  private listeners = new Map<string, Set<Listener>>();
   private pingId = 0;
+  private wsUnlisten: (() => void) | null = null;
+  private pingTimer: number | null = null;
+  private destroyed = false;
+
   private websocketUrls: {
     primary: string;
     fallback: string;
@@ -28,16 +37,29 @@ export class Slack {
     this.ready = this.bootstrap();
   }
 
-  private dispatch(type: string, data: Record<string, any>): void {
-    const handlers = this.listeners.get(type);
-    if (!handlers) return;
+  private matchesOptions(
+    payload: Record<string, any>,
+    options: Record<string, any>
+  ): boolean {
+    for (const key in options) {
+      if (!(key in payload)) continue;
+      const payloadVal = payload[key] != null ? String(payload[key]).trim() : payload[key];
+      const optionVal = options[key] != null ? String(options[key]).trim() : options[key];
+      if (payloadVal !== optionVal) return false;
+    }
+    return true;
+  }
 
-    for (const handler of handlers) {
-      try {
-        handler(data);
-      } catch (err) {
-        console.error("WebSocket listener error:", err);
+  private dispatch(type: string, payload: any) {
+    const listeners = this.listeners.get(type);
+    if (!listeners) return;
+
+    for (const { handler, options } of listeners) {
+      if (options && !this.matchesOptions(payload, options)) {
+        continue;
       }
+
+      handler(payload);
     }
   }
 
@@ -68,16 +90,20 @@ export class Slack {
       this.ws = await connect(this.websocketUrls.fallback);
     }
 
-    const ping = setInterval(() => {
-      if (this.websocketUrls!.ttl) {
-        this.ws!.send(JSON.stringify({ type: "ping", id: this.pingId++ }));
+    this.destroyed = false;
+
+    this.pingTimer = window.setInterval(() => {
+      if (this.websocketUrls?.ttl && this.ws) {
+        this.ws.send(JSON.stringify({ type: "ping", id: this.pingId++ }));
       }
     }, this.websocketUrls!.ttl * 1000);
 
-    this.ws.addListener((event) => {
+    this.wsUnlisten = this.ws.addListener((event) => {
+      if (this.destroyed) return;
+
       switch (event.type) {
-        case "Text":
-          let payload: Record<string, any>
+        case "Text": {
+          let payload;
           try {
             payload = JSON.parse(event.data);
           } catch {
@@ -87,25 +113,59 @@ export class Slack {
           const type = payload?.type ?? "*";
 
           if (type === "reconnect_url") {
-            return this.websocketUrls!.reconnect_url = payload.url;
+            this.websocketUrls!.reconnect_url = payload.url;
+            return;
           }
 
           this.dispatch(type, payload);
           this.dispatch("*", payload);
           return;
-        case "Close":
-          clearInterval(ping)
+        }
+
+        case "Close": {
+          if (this.pingTimer) {
+            clearInterval(this.pingTimer);
+            this.pingTimer = null;
+          }
+
           this.ws = null;
 
-          if (event.data!.code !== 1000) {
-            console.log(`Websocket closed because of ${event.data?.reason}. Reconnecting...`);
-            const reconnectFn = () => this.websocketCon(true);
-            setTimeout(reconnectFn, 1000);
+          if (!this.destroyed && event.data?.code !== 1000) {
+            setTimeout(() => {
+              if (!this.destroyed) {
+                this.websocketCon(true);
+              }
+            }, 1000);
           }
           return;
+        }
       }
-    })
-    return;
+    });
+  }
+
+  async destroy() {
+    this.destroyed = true;
+
+    if (this.pingTimer) {
+      clearInterval(this.pingTimer);
+      this.pingTimer = null;
+    }
+
+    if (this.wsUnlisten) {
+      try {
+        this.wsUnlisten();
+      } catch { }
+      this.wsUnlisten = null;
+    }
+
+    if (this.ws) {
+      try {
+        await this.ws.disconnect();
+      } catch { }
+      this.ws = null;
+    }
+
+    this.listeners.clear();
   }
 
   async send(data: Record<string, any>): Promise<void> {
@@ -115,18 +175,55 @@ export class Slack {
     }
   }
 
-  listen(type: string, handler: (data: any) => void): () => void {
+  listen(
+    type: string,
+    handler: (data: any) => void,
+    options?: Record<string, any>
+  ): () => void {
     this.ready.then(() => {
       if (!this.listeners.has(type)) {
         this.listeners.set(type, new Set());
       }
 
-      this.listeners.get(type)!.add(handler);
+      this.listeners.get(type)!.add({
+        handler,
+        options: options ? JSON.parse(JSON.stringify(options)) : undefined
+      });
+
     });
 
     return () => {
-      this.listeners.get(type)?.delete(handler);
+      const set = this.listeners.get(type);
+      if (!set) return;
+
+      for (const entry of set) {
+        if (entry.handler === handler) {
+          set.delete(entry);
+          break;
+        }
+      }
     };
+  }
+
+  unlisten(
+    type: string,
+    handler: (data: any) => void,
+    options?: Record<string, any>
+  ): void {
+    const set = this.listeners.get(type);
+    if (!set) return;
+
+    for (const entry of set) {
+      const optionsMatch = JSON.stringify(entry.options) === JSON.stringify(options);
+      if (entry.handler === handler && optionsMatch) {
+        set.delete(entry);
+        break;
+      }
+    }
+
+    if (set.size === 0) {
+      this.listeners.delete(type);
+    }
   }
 
 
@@ -223,6 +320,66 @@ export class Slack {
       console.error(data.error);
     }
 
+    return data;
+  }
+
+  async getConversationHistory(channelId: string, options?: {
+    limit: number;
+    ignore_replies: boolean;
+    include_pin_count: boolean;
+    inclusive: boolean;
+    no_user_profile: boolean;
+    include_stories: boolean;
+    include_free_team_extra_messages: boolean;
+    include_date_joined: boolean;
+  }) {
+    await this.ready;
+    if (channelId.length === 0) throw new Error("Provide a channel id");
+    if (!this.token) throw new Error("Slack token not initialized");
+    const defaultOpt = {
+      channel: channelId,
+      limit: 50,
+      ignore_replies: true,
+      include_pin_count: true,
+      inclusive: true,
+      no_user_profile: false,
+      include_stories: true,
+      include_free_team_extra_messages: true,
+      include_date_joined: true,
+    };
+
+    const finalOptions = {
+      ...defaultOpt,
+      ...options,
+    };
+
+    const data = await this.api("conversations.history", finalOptions);
+    return data;
+  }
+
+  async postMessage(channelId: string, text: string) {
+    await this.ready;
+    if (channelId.length === 0) throw new Error("Provide a channel id");
+    if (!this.token) throw new Error("Slack token not initialized");
+    const blockData: RichTextBlock[] = [{
+      type: "rich_text",
+      elements: [
+        {
+          type: "rich_text_section",
+          elements: [{
+            type: "text",
+            text
+          }]
+        }
+      ]
+    }]
+
+    const data = await this.api("chat.postMessage", {
+      channel: channelId,
+      ts: Date.now(),
+      type: "message",
+      blocks: blockData
+    });
     return data;
   }
 }

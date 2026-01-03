@@ -4,6 +4,7 @@ import { Router, Route } from "@solidjs/router";
 import Fallback from "./views/fallback";
 import Login from "./views/login"
 import Index from "./views/index";
+import "./css/index.css"
 
 render(
     () => (

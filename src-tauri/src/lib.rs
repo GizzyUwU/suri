@@ -34,9 +34,10 @@ async fn oauth(app_handle: tauri::AppHandle, url: String) -> Result<String, Stri
         .on_navigation({
             let result_tx = result_tx.clone();
             let app_handle = app_handle.clone();
-            move |url| {
-                if url.host_str().is_some_and(|h| h.ends_with("slack.com"))
-                    && url.path() == "/checkcookie"
+            let url = url.clone();
+            move |nav_url| {
+                if nav_url.host_str().is_some_and(|h| h.ends_with("slack.com"))
+                    && nav_url.path() == "/checkcookie"
                 {
                     let result_tx = result_tx.clone();
                     let app_handle = app_handle.clone();

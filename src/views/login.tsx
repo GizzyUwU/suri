@@ -3,10 +3,11 @@ import { makePersisted } from "@solid-primitives/storage";
 import { useNavigate } from "@solidjs/router";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { SafeStore } from "../lib/safeStore";
-import { deletePassword, getPassword, setPassword } from "tauri-plugin-keyring-api";
+import { getPassword, setPassword } from "tauri-plugin-keyring-api";
 
 export default function Login() {
   const nav = useNavigate();
+  window.addEventListener('unload', function (e) {})
   const [continu, setContinu] = createSignal<boolean>(false);
   const [data, setData] = createSignal<SafeStore | null>(null)
   const [token, setTokenStore] = makePersisted(createSignal<string>(""), {
@@ -63,7 +64,7 @@ export default function Login() {
       return nav("/authed")
     }
     const appWebview = getCurrentWebviewWindow();
-    appWebview.once<string>("slack-local-config", (event) => {
+    const unlisten = await appWebview.once<string>("slack-local-config", (event) => {
       setLocalConfig(event.payload);
       const check = setInterval(async () => {
         if (token()) {
@@ -71,10 +72,18 @@ export default function Login() {
           data()?.set("d-token", token());
           data()?.set("lConfig", event.payload)
           await data()?.save();
-          return nav("/authed")
+          return nav("/authed", { replace: true })
         }
       }, 500)
     });
+
+    window.addEventListener('unload', () => {
+      unlisten()
+    });
+
+    return () => {
+      unlisten();
+    };
   });
 
   return (
@@ -100,9 +109,12 @@ export default function Login() {
             if (!/^https?:\/\//i.test(url())) setUrl("https://" + url());
             if (url().endsWith("/")) setUrl(url().slice(0, -1));
             if (!url().endsWith("/sso/saml/start")) setUrl(url() + "/sso/saml/start");
-            const token: string = await window.__TAURI__.core.invoke("oauth", {
+            const token = await window.__TAURI__.core.invoke("oauth", {
               url: url(),
-            });
+            }).catch(err => {
+              if (!err.message.includes("Couldn't find callback id")) return "";
+              return "";
+            }) as string;
             console.log("balls");
             setTokenStore(token);
           }}

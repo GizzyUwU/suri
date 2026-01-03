@@ -6,7 +6,7 @@
   "scripts": {
     "start": "vite",
     "dev-server": "vite --host",
-    "dev": "tauri dev",
+    "dev": "RUST_BACKTRACE=1 tauri dev",
     "build:ui": "vite build",
     "build": "NO_STRIP=true tauri build",
     "serve": "vite preview",
@@ -14,8 +14,10 @@
   },
   "license": "MIT",
   "dependencies": {
+    "@slack/web-api": "^7.13.0",
     "@solid-primitives/storage": "^4.3.3",
     "@solidjs/router": "^0.15.4",
+    "@tailwindcss/vite": "^4.1.18",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-http": "~2",
     "@tauri-apps/plugin-opener": "^2",
@@ -24,6 +26,7 @@
     "axios": "^1.13.2",
     "axios-tauri-api-adapter": "^2.0.6",
     "solid-js": "^1.9.3",
+    "tailwindcss": "^4.1.18",
     "tauri-plugin-keyring-api": "^0.1.1"
   },
   "devDependencies": {
