@@ -382,4 +382,98 @@ export class Slack {
     });
     return data;
   }
+
+  async getChannelUserList(channelId: string, options?: {
+    everyone?: boolean;
+    bots?: boolean;
+    apps?: boolean;
+    present_first?: boolean;
+    count?: number;
+  }) {
+    await this.ready;
+    if (channelId.length === 0) throw new Error("Provide a channel id");
+    if (!this.token) throw new Error("Slack token not initialized");
+    const defaultOpt = {
+      token: this.token,
+      enterprise_token: this.token,
+      everyone: true,
+      bots: false,
+      apps: false,
+      count: 77,
+      present_first: true
+    };
+
+    const finalOptions = {
+      ...defaultOpt,
+      ...options,
+    };
+
+    const filters: string[] = [];
+    if (finalOptions.everyone) filters.push("everyone");
+    if (finalOptions.bots) filters.push("bots");
+    if (finalOptions.apps) filters.push("apps");
+
+    const filterStr = [
+      finalOptions.everyone ? "everyone" : "NOT everyone",
+      finalOptions.bots ? "bots" : "NOT bots",
+      finalOptions.apps ? "apps" : "NOT apps"
+    ].join(" AND ");
+
+    console.log(filterStr)
+
+    const url = new URL("https://edgeapi.slack.com/cache/E09V59WQY1E/users/list?_x_app_name=client&fp=7b&_x_num_retries=0 HTTP/1.1");
+
+    const headers: Record<string, string> = {};
+    if (this.dCookie) {
+      headers["Cookie"] = `d=${this.dCookie}`;
+    }
+
+    const response = await fetch(url.toString(), {
+      method: "POST",
+      body: JSON.stringify({
+        token: this.token,
+        channels: [channelId],
+        count: finalOptions.count,
+        present_first: finalOptions.present_first,
+        filter: filterStr,
+      }),
+      headers,
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Slack API Error: ${response.status} - ${text}`);
+    }
+
+    const data = await response.clone().json();
+    if (!data.ok) {
+      console.error(data.error);
+    }
+
+    return data;
+  }
+
+
+  async getImageDataFromSlack(url: string) {
+    await this.ready;
+    if (!this.token) throw new Error("Slack token not initialized");
+
+    const headers: Record<string, string> = {};
+    if (this.dCookie) {
+      headers["Cookie"] = `d=${this.dCookie}`;
+    }
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers,
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Slack API Error: ${response.status} - ${text}`);
+    }
+
+    const blob = await response.blob();
+    return URL.createObjectURL(blob);
+  }
 }

@@ -2,9 +2,9 @@ use serde::Serialize;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder};
+use tokio::time::sleep;
 use url::Url;
 use users::{get_current_uid, get_user_by_uid};
-use tokio::time::sleep;
 mod gpu;
 
 #[tauri::command]
@@ -93,9 +93,11 @@ async fn system_user() -> Result<SystemUser, String> {
 async fn reload_window(app: AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.close();
-    }
 
-    sleep(std::time::Duration::from_millis(100)).await;
+        while app.get_webview_window("main").is_some() {
+            sleep(std::time::Duration::from_millis(100)).await;
+        }
+    }
 
     WebviewWindowBuilder::new(
         &app,
@@ -106,7 +108,6 @@ async fn reload_window(app: AppHandle) {
     .unwrap();
 }
 
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     #[cfg(target_os = "linux")]
@@ -116,7 +117,6 @@ pub fn run() {
     let block_exit_clone = block_exit.clone();
 
     tauri::Builder::default()
-        .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_websocket::init())
         .plugin(tauri_plugin_http::init())

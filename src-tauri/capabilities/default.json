@@ -38,24 +38,6 @@
     "store:default",
     "keyring:allow-get-password",
     "keyring:allow-set-password",
-    "keyring:allow-delete-password",
-    "process:default",
-    {
-      "identifier": "shell:allow-execute",
-      "allow": [
-        {
-          "name": "exec-sh",
-          "cmd": "sh",
-          "args": [
-            "-c",
-            "bun run dev:server",
-            {
-              "validator": "\\S+"
-            }
-          ]
-        }
-      ],
-      "sidecar": false
-    }
+    "keyring:allow-delete-password"
   ]
 }

@@ -1,12 +1,14 @@
 import { Slack } from "../lib/slack";
-import { onMount, createSignal, Show, For } from "solid-js";
+import { onMount, createSignal, Show, For, lazy } from "solid-js";
 import { makePersisted } from "@solid-primitives/storage";
 import { useNavigate } from "@solidjs/router";
 import { createStore } from "solid-js/store";
 
+const Chat = lazy(() => import("../components/chat"));
+
 export default function Index() {
   const nav = useNavigate();
-  let messagesList: HTMLUListElement | undefined;
+
   const [token] = makePersisted(createSignal<string>(""), {
     name: "d-token",
     storage: sessionStorage,
@@ -18,81 +20,34 @@ export default function Index() {
   });
 
   const [state, setState] = createStore<{
-    history: Record<string, any>;
     channels: Record<string, any>[];
     slackAPI: Slack | null;
     currentChannel: string;
     localData: Record<string, any>;
   }>({
-    history: {},
     channels: [],
     slackAPI: null,
     currentChannel: "",
-    localData: {}
+    localData: {},
   });
-
-  const sendMessage = async (channelId: string, text: string) => {
-    if (!channelId) return;
-    const client = state.slackAPI;
-    if (!client) return;
-    const data = await client.postMessage(channelId, text)
-    if (data.ok && data.message) {
-      setState("history", "messages", (prev: any[]) => [...prev, data.message]);
-      requestAnimationFrame(() => {
-        if (!messagesList) return;
-        messagesList.scrollTop = messagesList.scrollHeight;
-      });
-    }
-  }
-
-  const getConvHistory = async (channelId: string) => {
-    if (!channelId) return;
-    const client = state.slackAPI;
-    if (!client) return;
-    const data = await client.getConversationHistory(channelId)
-    if (data.ok) {
-      setState("history", {
-        ...data,
-        messages: [...data.messages].reverse(),
-      });
-
-      requestAnimationFrame(() => {
-        if (!messagesList) return;
-        messagesList.scrollTop = messagesList.scrollHeight;
-      });
-
-      client.listen("message", (data) => {
-        console.log(state.localData)
-        if (data.user === state.localData.teams[state.localData.lastActiveTeamId].user_id) return;
-        setState("history", "messages", (prev: any[]) => [...prev, data]);
-        requestAnimationFrame(() => {
-          if (!messagesList) return;
-          messagesList.scrollTop = messagesList.scrollHeight;
-        });
-      }, {
-        hidden: false,
-        channel: state.currentChannel
-      })
-    }
-  };
 
   onMount(async () => {
     if (!token() || !localConfig()) return nav("/");
+
     const data = JSON.parse(localConfig());
-    setState("localData", data)
+    setState("localData", data);
+
     const workspace = data.teams[data.lastActiveTeamId];
     let url = workspace.url.trim();
     if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
-    if (url.endsWith("/")) {
-      url = url.slice(0, -1);
-    }
-    const workspaceToken = workspace.token;
-    const client = new Slack(url, workspaceToken, token());
+    if (url.endsWith("/")) url = url.slice(0, -1);
+
+    const client = new Slack(url, workspace.token, token());
 
     setState({
-      "slackAPI": client,
-      "channels": await client.getChannels()
-    })
+      slackAPI: client,
+      channels: await client.getChannels(),
+    });
   });
 
   return (
@@ -161,7 +116,6 @@ export default function Index() {
                 {(channel) => (
                   <li onClick={() => {
                     setState("currentChannel", channel.id)
-                    getConvHistory(channel.id)
                   }}>{channel.name}</li>
                 )}
               </For>
@@ -173,35 +127,17 @@ export default function Index() {
 
       <div class="sm:ml-64 mt-14 h-[calc(100vh-3.5rem)] flex flex-col">
         <div class="overflow-hidden flex flex-col flex-1 border border-default border-dashed rounded-base">
-          <ul ref={(el) => (messagesList = el)} class="overflow-y-auto flex-1 space-y-2 p-4">
-            <For each={state.history.messages}>
-              {(message) => (
-                <li>
-                  {message.user} - {message.text}
-                </li>
+          <Show when={state.slackAPI && state.currentChannel}>
+            <For each={[state.currentChannel]}>
+              {(_) => (
+                <Chat
+                  client={state.slackAPI!}
+                  currentChannel={() => state.currentChannel}
+                  localData={state.localData}
+                />
               )}
             </For>
-          </ul>
-          <div class="shrink-0 border-t border-default">
-            <form
-              onSubmit={(e) => {
-                e.preventDefault(); // prevent page reload
-                const input = e.currentTarget.elements.namedItem("message") as HTMLInputElement;
-                const text = input.value.trim();
-                if (text) {
-                  sendMessage(state.currentChannel, text); // replace with actual channelId
-                  input.value = ""; // clear after sending
-                }
-              }}
-            >
-              <input
-                name="message"
-                type="text"
-                placeholder="Type a message..."
-                class="w-full p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </form>
-          </div>
+          </Show>
         </div>
       </div>
     </>
