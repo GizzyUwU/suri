@@ -28,7 +28,7 @@ export default function Login() {
       uid: number;
       name: string;
       primary_group: number;
-    } = await window.__TAURI__.core.invoke("system_user");
+    } = await window.__TAURI__.core.invoke("sys_user");
 
     let key = await getPassword("suri", user.name);
     if (!key) {
@@ -50,7 +50,6 @@ export default function Login() {
       key = hexKey;
     }
 
-    console.log("e")
     const store = await SafeStore.use(key, user.name);
     setData(store);
     if ((store?.get("d-token") && store?.get("d-token").length > 0) && (store?.get("lConfig") && store.get("lConfig").length > 0)) {
@@ -106,13 +105,12 @@ export default function Login() {
             if (!/^https?:\/\//i.test(url())) setUrl("https://" + url());
             if (url().endsWith("/")) setUrl(url().slice(0, -1));
             if (!url().endsWith("/sso/saml/start")) setUrl(url() + "/sso/saml/start");
-            const token = await window.__TAURI__.core.invoke("oauth", {
+            const token = await window.__TAURI__.core.invoke("handle_auth", {
               url: url(),
             }).catch(err => {
               if (!err.message.includes("Couldn't find callback id")) return "";
               return "";
             }) as string;
-            console.log("balls", token);
             setTokenStore(token);
           }}
         >

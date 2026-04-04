@@ -5,7 +5,7 @@
 
     document.body.innerHTML = "Local Config exists in Local Storage. Attempting to send to main window...";
     const invoke = window.__TAURI__.core.invoke;
-    const result = await invoke("local_config_handler", { data: { localConfig } });
+    const result = await invoke("handle_config", { data: { localConfig } });
 
     if (result === "data_received") {
         clearInterval(poll);

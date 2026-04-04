@@ -1,5 +1,11 @@
-import { RichTextBlock, RichTextElement } from "@slack/web-api";
+import {
+  Block,
+  HeaderBlock,
+  RichTextBlock,
+  RichTextElement,
+} from "@slack/web-api";
 import type { Slack } from "./slack";
+import { parseMarkdownToSlackBlocks } from "./parseMrkdwn";
 import { JSX } from "solid-js";
 
 type EntityContext = {
@@ -9,12 +15,19 @@ type EntityContext = {
 
 function decodeSlackText(text: string) {
   if (!text) return "";
-  let decoded = text.replace(/&gt;/g, ">").replace(/&lt;/g, "<").replace(/&amp;/g, "&");
+  let decoded = text
+    .replace(/&gt;/g, ">")
+    .replace(/&lt;/g, "<")
+    .replace(/&amp;/g, "&");
   decoded = decoded.replace(/\\([_*~`>])/g, "$1");
   return decoded;
 }
 
-function renderSlackInlineJSX(text: string, ctx: EntityContext, style?: any): JSX.Element[] {
+function renderSlackInlineJSX(
+  text: string,
+  ctx: EntityContext,
+  style?: any,
+): JSX.Element[] {
   const wrapWithStyle = (content: JSX.Element, style: any): JSX.Element => {
     let el: JSX.Element = content;
     if (!style) return el;
@@ -23,21 +36,28 @@ function renderSlackInlineJSX(text: string, ctx: EntityContext, style?: any): JS
     if (style.italic) el = <i>{el}</i>;
     if (style.underline) el = <u>{el}</u>;
     if (style.strike) el = <s>{el}</s>;
-    if (style.code) el = <pre class="
+    if (style.code)
+      el = (
+        <pre
+          class="
       mt-2
-      border 
-    border-gray-300/13 
+      border
+    border-gray-300/13
     bg-black/20
     text-orange-700
-      rounded 
-      px-0.75 
-      py-0.5 
-      text-[12px] 
-      leading-normal 
-      font-mono 
-      whitespace-pre-wrap 
+      rounded
+      px-0.75
+      py-0.5
+      text-[12px]
+      leading-normal
+      font-mono
+      whitespace-pre-wrap
       wrap-break-word
-      tab-size-4"><code>{el}</code></pre>
+      tab-size-4"
+        >
+          <code>{el}</code>
+        </pre>
+      );
     return el;
   };
 
@@ -48,7 +68,8 @@ function renderSlackInlineJSX(text: string, ctx: EntityContext, style?: any): JS
   let match: RegExpExecArray | null;
 
   while ((match = regex.exec(decoded)) !== null) {
-    if (match.index > lastIndex) parts.push(wrapWithStyle(decoded.slice(lastIndex, match.index), style));
+    if (match.index > lastIndex)
+      parts.push(wrapWithStyle(decoded.slice(lastIndex, match.index), style));
 
     const inner = match[1];
     let jsxPart: JSX.Element;
@@ -82,7 +103,8 @@ function renderSlackInlineJSX(text: string, ctx: EntityContext, style?: any): JS
     lastIndex = regex.lastIndex;
   }
 
-  if (lastIndex < decoded.length) parts.push(wrapWithStyle(decoded.slice(lastIndex), style));
+  if (lastIndex < decoded.length)
+    parts.push(wrapWithStyle(decoded.slice(lastIndex), style));
 
   const finalElements: JSX.Element[] = [];
   for (const part of parts) {
@@ -90,7 +112,8 @@ function renderSlackInlineJSX(text: string, ctx: EntityContext, style?: any): JS
       const lines = part.split("\n");
       lines.forEach((line, idx) => {
         finalElements.push(line);
-        if (idx < lines.length - 1) finalElements.push(<span class="block mt-2"></span>);
+        if (idx < lines.length - 1)
+          finalElements.push(<span class="block mt-2"></span>);
       });
     } else {
       finalElements.push(part);
@@ -100,77 +123,103 @@ function renderSlackInlineJSX(text: string, ctx: EntityContext, style?: any): JS
   return finalElements;
 }
 
-
-function renderBlock(block: RichTextBlock, ctx: EntityContext): JSX.Element[] {
+function richTextParser(
+  block: RichTextBlock,
+  ctx: EntityContext,
+): JSX.Element[] {
   const elements: JSX.Element[] = [];
-
-  if (block.type !== "rich_text") return elements;
 
   for (const el of block.elements ?? []) {
     switch (el.type) {
-      case "rich_text_section":
+      case "rich_text_section": {
+        const sectionElements: JSX.Element[] = [];
         for (const node of el.elements ?? []) {
-          if (node.type === "text") elements.push(...renderSlackInlineJSX(node.text, ctx, node.style));
+          if (node.type === "text")
+            sectionElements.push(
+              ...renderSlackInlineJSX(node.text, ctx, node.style),
+            );
           else if (node.type === "link")
-            elements.push(
-              <a href={node.url} target="_blank" rel="noopener noreferrer" style={{
-                color: "blue",
-                "text-decoration": "underline",
-              }}>
+            sectionElements.push(
+              <a
+                href={node.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ "text-decoration": "underline" }}
+                class="text-ctp-blue"
+              >
                 {node.text ?? node.url}
-              </a>
+              </a>,
             );
           else if (node.type === "user")
-            elements.push(
+            sectionElements.push(
               <span class="slack-mention user" data-user-id={node.user_id}>
                 @{ctx.resolveUser?.(node.user_id) ?? node.user_id}
-              </span>
+              </span>,
             );
-          else if (node.type === "emoji") elements.push(`:${node.name}:`);
+          else if (node.type === "emoji")
+            sectionElements.push(`:${node.name}:`);
+        }
+
+        const isWhitespaceOnly = sectionElements.every(
+          (e) => typeof e === "string" && e.trim() === "",
+        );
+
+        if (isWhitespaceOnly) {
+          elements.push(<br />);
+        } else {
+          elements.push(...sectionElements);
+          elements.push(<br />);
         }
         break;
+      }
 
       case "rich_text_quote":
         elements.push(
-          <blockquote style={{
-            "border-left": "lightgray 6px solid",
-            "border-top-left-radius": "1px",
-            "border-bottom-left-radius": "1px",
-          }}>
-            <div style={{
-              "padding-left": "4px"
-            }}>
+          <blockquote
+            style={{
+              "border-left": "lightgray 6px solid",
+              "border-top-left-radius": "1px",
+              "border-bottom-left-radius": "1px",
+            }}
+          >
+            <div
+              style={{
+                "padding-left": "4px",
+              }}
+            >
               {el.elements?.flatMap((n: RichTextElement) =>
-                n.type === "text" ? renderSlackInlineJSX(n.text, ctx) : []
+                n.type === "text" ? renderSlackInlineJSX(n.text, ctx) : [],
               )}
             </div>
-          </blockquote>
+          </blockquote>,
         );
         break;
 
       case "rich_text_preformatted":
         elements.push(
-          <pre class="
-              border 
-            border-gray-300/13 
+          <pre
+            class="
+              border
+            border-gray-300/13
             bg-black/20
             text-orange-700
-              rounded 
+              rounded
               px-2
               py-2
               w-full
-              text-[12px] 
-              leading-normal 
-              font-mono 
-              whitespace-pre-wrap 
+              text-[12px]
+              leading-normal
+              font-mono
+              whitespace-pre-wrap
               wrap-break-word
-              ">
+              "
+          >
             <code>
               {el.elements?.flatMap((n: RichTextElement) =>
-                n.type === "text" ? renderSlackInlineJSX(n.text, ctx) : []
+                n.type === "text" ? renderSlackInlineJSX(n.text, ctx) : [],
               )}
             </code>
-          </pre>
+          </pre>,
         );
         break;
 
@@ -182,45 +231,96 @@ function renderBlock(block: RichTextBlock, ctx: EntityContext): JSX.Element[] {
                 {el.elements?.map((item, index) => (
                   <li>
                     <span>{index + 1}. </span>
-                    {item.elements?.flatMap(n => (n.type === "text" ? renderSlackInlineJSX(n.text, ctx) : []))}
+                    {item.elements?.flatMap((n) =>
+                      n.type === "text"
+                        ? renderSlackInlineJSX(n.text, ctx)
+                        : [],
+                    )}
                   </li>
                 ))}
               </ol>
-            </div>
+            </div>,
           );
         } else {
           elements.push(
             <div style={{ "padding-left": "2px" }}>
               <ul>
-                {el.elements?.map(item => (
+                {el.elements?.map((item) => (
                   <li>
-                    - {item.elements?.flatMap(n => (n.type === "text" ? renderSlackInlineJSX(n.text, ctx) : []))}
+                    -{" "}
+                    {item.elements?.flatMap((n) =>
+                      n.type === "text"
+                        ? renderSlackInlineJSX(n.text, ctx)
+                        : [],
+                    )}
                   </li>
                 ))}
               </ul>
-            </div>
+            </div>,
           );
         }
         break;
     }
   }
-
   return elements;
+}
+
+function renderBlock(block: Block, ctx: EntityContext): JSX.Element[] {
+  if (block.type === "rich_text") {
+    const elements = richTextParser(block as RichTextBlock, ctx);
+    return elements;
+  } else {
+    switch (block.type) {
+      case "header": {
+        const textElement = (block as HeaderBlock).text;
+        if (textElement.type === "plain_text") {
+          return [<h1>{textElement.text}</h1>];
+        }
+        return [];
+      }
+        
+      case "section": {
+        const sectionBlock = block as any;
+        const text = sectionBlock.text;S
+        if (text?.type === "mrkdwn" && text.text) {
+          const richBlocks = parseMarkdownToSlackBlocks(text.text);
+          return richBlocks.flatMap((b) =>
+            b.type === "rich_text"
+              ? richTextParser(b as RichTextBlock, ctx)
+              : renderBlock(b as Block, ctx),
+          );
+        }
+        return [];
+      }
+
+      default: {
+        return [];
+      }
+    }
+  }
 }
 
 const deviceWidth = window.innerWidth * window.devicePixelRatio;
 
 function pickSlackThumb(file: any) {
   const thumbs = [
-    "thumb_64", "thumb_80", "thumb_160",
-    "thumb_360", "thumb_480", "thumb_720",
-    "thumb_800", "thumb_960", "thumb_1024",
-  ].map(key => ({
-    key,
-    url: file[key],
-    w: file[`${key}_w`] ?? 0,
-    h: file[`${key}_h`] ?? 0
-  })).filter(t => t.url);
+    "thumb_64",
+    "thumb_80",
+    "thumb_160",
+    "thumb_360",
+    "thumb_480",
+    "thumb_720",
+    "thumb_800",
+    "thumb_960",
+    "thumb_1024",
+  ]
+    .map((key) => ({
+      key,
+      url: file[key],
+      w: file[`${key}_w`] ?? 0,
+      h: file[`${key}_h`] ?? 0,
+    }))
+    .filter((t) => t.url);
 
   for (let i = thumbs.length - 1; i >= 0; i--) {
     if (thumbs[i].w <= deviceWidth) return thumbs[i];
@@ -230,14 +330,15 @@ function pickSlackThumb(file: any) {
 }
 
 export function parseSlackMessageJSX(
-  message: { blocks?: RichTextBlock[]; text?: string; files?: any[] },
+  message: { blocks?: Block[]; text?: string; files?: any[] },
   ctx: EntityContext = {},
-  client?: Slack
+  client?: Slack,
 ): JSX.Element[] {
   const content: JSX.Element[] = [];
 
   if (message.blocks?.length) {
-    for (const block of message.blocks) content.push(...renderBlock(block, ctx, client));
+    for (const block of message.blocks)
+      content.push(...renderBlock(block, ctx));
   } else if (message.text) {
     content.push(...renderSlackInlineJSX(decodeSlackText(message.text), ctx));
   }
@@ -247,13 +348,16 @@ export function parseSlackMessageJSX(
       const bestThumb = pickSlackThumb(file);
 
       content.push(
-        <div class="slack-file slack-image" style={{
-          width: "360px",
-          "max-width": `${bestThumb.w}px`,
-          "max-height": `${bestThumb.h}px`,
-          "position": "relative",
-          "background-color": "#00000020",
-        }}>
+        <div
+          class="slack-file slack-image"
+          style={{
+            width: "360px",
+            "max-width": `${bestThumb.w}px`,
+            "max-height": `${bestThumb.h}px`,
+            position: "relative",
+            "background-color": "#00000020",
+          }}
+        >
           <img
             data-slack-url={bestThumb.url}
             alt={file.name}
@@ -262,17 +366,19 @@ export function parseSlackMessageJSX(
               width: "100%",
               height: "auto",
               "object-fit": "contain",
-              display: "block"
+              display: "block",
             }}
-            ref={el => {
+            ref={(el) => {
               if (!el || !client) return;
-              client.getImageDataFromSlack(bestThumb.url)
-                .then(blobUrl => { el.src = blobUrl })
-                .catch(err => console.error("Slack image failed", err));
+              client
+                .getImageDataFromSlack(bestThumb.url)
+                .then((blobUrl) => {
+                  el.src = blobUrl;
+                })
+                .catch((err) => console.error("Slack image failed", err));
             }}
           />
-        </div>
-
+        </div>,
       );
     } else {
       content.push(
@@ -280,7 +386,7 @@ export function parseSlackMessageJSX(
           <a href={file.url_private} target="_blank" rel="noopener noreferrer">
             {file.name}
           </a>
-        </div>
+        </div>,
       );
     }
   }
