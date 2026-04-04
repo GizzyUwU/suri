@@ -274,7 +274,7 @@ function renderBlock(block: Block, ctx: EntityContext): JSX.Element[] {
       case "header": {
         const textElement = (block as HeaderBlock).text;
         if (textElement.type === "plain_text") {
-          return [<h1>{textElement.text}</h1>];
+          return [<h1 class="text-xl font-bold">{textElement.text}</h1>];
         }
         return [];
       }
