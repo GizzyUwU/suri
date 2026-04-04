@@ -281,7 +281,7 @@ function renderBlock(block: Block, ctx: EntityContext): JSX.Element[] {
         
       case "section": {
         const sectionBlock = block as any;
-        const text = sectionBlock.text;S
+        const text = sectionBlock.text;
         if (text?.type === "mrkdwn" && text.text) {
           const richBlocks = parseMarkdownToSlackBlocks(text.text);
           return richBlocks.flatMap((b) =>
