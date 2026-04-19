@@ -3,7 +3,7 @@ import { onMount, createSignal, Show, For, lazy, createMemo } from "solid-js";
 import { makeObjectStorage, makePersisted } from "@solid-primitives/storage";
 import { useNavigate } from "@solidjs/router";
 import { createStore } from "solid-js/store";
-import type * as SlackT from "../lib/slack.d";
+import type * as SlackT from "../lib/slack";
 const Chat = lazy(() => import("../components/chat"));
 import "../css/index.css";
 import { SafeStore } from "../lib/safeStore";
@@ -139,78 +139,84 @@ export default function Index() {
   });
 
   onMount(async () => {
-      if (!token() || !localConfig()) return nav("/");
-      const user: {
-        uid: number;
-        name: string;
-        primary_group: number;
-      } = await window.__TAURI__.core.invoke("sys_user");
-      const key = (await getPassword("suri", user.name)) ?? "";
-      const store = await SafeStore.use(key, user.name);
-      setSafeData(store);
-      const data = JSON.parse(localConfig());
-      setState("localData", data);
-  
-      const workspace = data.teams[data.lastActiveTeamId];
-      let url = workspace.url.trim();
-      if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
-      if (url.endsWith("/")) url = url.slice(0, -1);
-  
-      const client = new Slack(url, workspace.token, token());
-      const app = new App({
-        receiver: { type: "rtm" },
-        token: { cookie: token(), token: workspace.token },
-      });
-  
-      await app.start();
-      setState("userBoot", await app.request("client.userBoot", {}));
-      backgroundThings({ app, state, setState, userBoot: state.userBoot! });
-  
-      const rawChannels = state.userBoot!.channels;
-      const priorities: Record<string, number> =
-        (state.userBoot!.channels_priority as Record<string, number> | undefined) || {};
-  
-      const sortedChannels = [...rawChannels].sort((a, b) =>
-        (priorities[b.id] ?? 0) - (priorities[a.id] ?? 0)
+    if (!token() || !localConfig()) return nav("/");
+    const user: {
+      uid: number;
+      name: string;
+      primary_group: number;
+    } = await window.__TAURI__.core.invoke("sys_user");
+    const key = (await getPassword("suri", user.name)) ?? "";
+    const store = await SafeStore.use(key, user.name);
+    setSafeData(store);
+    const data = JSON.parse(localConfig());
+    setState("localData", data);
+
+    const workspace = data.teams[data.lastActiveTeamId];
+    let url = workspace.url.trim();
+    if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
+    if (url.endsWith("/")) url = url.slice(0, -1);
+
+    const client = new Slack(url, workspace.token, token());
+    const app = new App({
+      receiver: { type: "rtm" },
+      token: { cookie: token(), token: workspace.token },
+    });
+
+    await app.start();
+    setState("userBoot", await app.request("client.userBoot", {}));
+    backgroundThings({ app, state, setState, userBoot: state.userBoot! });
+
+    const rawChannels = state.userBoot!.channels;
+    const priorities: Record<string, number> =
+      (state.userBoot!.channels_priority as
+        | Record<string, number>
+        | undefined) || {};
+
+    const sortedChannels = [...rawChannels].sort(
+      (a, b) => (priorities[b.id] ?? 0) - (priorities[a.id] ?? 0),
+    );
+
+    const sectionsPromise = app.request("users.channelSections.list", {});
+    const countsPromise = app.request("client.counts", {});
+
+    setState({
+      channels: sortedChannels as unknown as EnrichedChannel[],
+      client: app,
+      oldClient: client,
+    });
+
+    if (persist.lastActiveChannel) {
+      setState("currentChannel", persist.lastActiveChannel ?? "");
+    }
+
+    const sectionsRaw = await sectionsPromise;
+    const orderedSections = orderSections(sectionsRaw.channel_sections);
+    setState({
+      sections: sectionsRaw.channel_sections,
+      expandedSections: orderedSections.reduce(
+        (acc: Record<string, boolean>, section: any) => {
+          acc[section.channel_section_id] = true;
+          return acc;
+        },
+        {} as Record<string, boolean>,
+      ),
+    });
+
+    countsPromise.then((clientCounts) => {
+      const countsMap = new Map(
+        clientCounts.channels.map((c: any) => [c.id, c]),
       );
-  
-      const sectionsPromise = app.request("users.channelSections.list", {});
-      const countsPromise = app.request("client.counts", {});
-  
-      setState({
-        channels: sortedChannels as unknown as EnrichedChannel[],
-        client: app,
-        oldClient: client,
-      });
-  
-      if (persist.lastActiveChannel) {
-        setState("currentChannel", persist.lastActiveChannel ?? "");
-      }
-  
-      const sectionsRaw = await sectionsPromise;
-      const orderedSections = orderSections(sectionsRaw.channel_sections);
-      setState({
-        sections: sectionsRaw.channel_sections,
-        expandedSections: orderedSections.reduce(
-          (acc: Record<string, boolean>, section: any) => {
-            acc[section.channel_section_id] = true;
-            return acc;
-          },
-          {} as Record<string, boolean>,
-        ),
-      });
-  
-      countsPromise.then((clientCounts) => {
-        const countsMap = new Map(clientCounts.channels.map((c: any) => [c.id, c]));
-        setState("channels", (channels) =>
+      setState(
+        "channels",
+        (channels) =>
           channels.map((channel) => ({
             ...channel,
             ...(countsMap.get(channel.id) || {}),
           })) as EnrichedChannel[],
-        );
-      });
+      );
     });
-  
+  });
+
   return (
     <div class="w-screen h-screen bg-ctp-base text-white">
       <aside class="fixed h-full left-0 z-40 w-16 block transition-transform -translate-x-full sm:translate-x-0 border-r border-dashed"></aside>

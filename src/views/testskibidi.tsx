@@ -50,22 +50,22 @@ export default function Login() {
 
     const store = await SafeStore.use(key, user.name);
     setData(store);
-    if ((store?.get("d-token") && store?.get("d-token").length > 0) && (store?.get("lConfig") && store.get("lConfig").length > 0)) {
-      const dToken = data()?.get("d-token");
-      const lConfig = data()?.get("lConfig");
-      setLocalConfig(lConfig);
-      setTokenStore(dToken);
-      return nav("/authed", {
-        replace: true
-      });
-    }
+    // if ((store?.get("d-token") && store?.get("d-token").length > 0) && (store?.get("lConfig") && store.get("lConfig").length > 0)) {
+    //   const dToken = data()?.get("d-token");
+    //   const lConfig = data()?.get("lConfig");
+    //   setLocalConfig(lConfig);
+    //   setTokenStore(dToken);
+    //   return nav("/authed", {
+    //     replace: true
+    //   });
+    // }
 
-    if (localConf() && token()) {
-      console.log("a")
-      return nav("/authed", {
-        replace: true
-      })
-    }
+    // if (localConf() && token()) {
+    //   console.log("a")
+    //   return nav("/authed", {
+    //     replace: true
+    //   })
+    // }
     const appWebview = getCurrentWebviewWindow();
     await appWebview.once<string>("slack-local-config", (event) => {
       setLocalConfig(event.payload);
