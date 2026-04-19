@@ -1,6 +1,6 @@
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-use tauri::RunEvent;
+// use std::sync::atomic::{AtomicBool, Ordering};
+// use std::sync::Arc;
+// use tauri::RunEvent;
 mod gpu;
 mod commands;
 
@@ -9,8 +9,8 @@ pub fn run() {
     #[cfg(target_os = "linux")]
     gpu::disable_dma();
 
-    let block_exit = Arc::new(AtomicBool::new(true));
-    let block_exit_clone = block_exit.clone();
+    // let block_exit = Arc::new(AtomicBool::new(true));
+    // let block_exit_clone = block_exit.clone();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_store::Builder::new().build())
@@ -24,14 +24,15 @@ pub fn run() {
             commands::sys::sys_user,
             commands::reload::reload_window
         ])
-        .build(tauri::generate_context!())
-        .expect("error while building tauri application")
-        .run(move |_app_handle, event| match event {
-            RunEvent::ExitRequested { api, code, .. } => {
-                if block_exit_clone.load(Ordering::SeqCst) && code.is_none() {
-                    api.prevent_exit();
-                }
-            }
-            _ => {}
-        });
+        .run(tauri::generate_context!())
+        .expect("error while building tauri application");
+    
+        // .run(move |_app_handle, event| match event {
+        //     RunEvent::ExitRequested { api, code, .. } => {
+        //         if block_exit_clone.load(Ordering::SeqCst) && code.is_none() {
+        //             api.prevent_exit();
+        //         }
+        //     }
+        //     _ => {}
+        // });
 }

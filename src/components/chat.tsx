@@ -1,22 +1,30 @@
 import { Slack } from "../lib/slacktism";
 import { App } from "slack.ts";
 import { onCleanup, onMount, For, Show } from "solid-js";
-import { createStore } from "solid-js/store";
+import { createStore, SetStoreFunction, Store } from "solid-js/store";
 import { parseSlackMessageJSX } from "../lib/messageParser";
 import { GenericMessageEvent } from "@slack/web-api";
 import MingcuteEmojiLine from "~icons/mingcute/emoji-line";
 import EmojiList from "./emojiList";
 import { ClientUserBootResponse } from "slack-undoc-client";
+import { CachedMessage, StateType } from "../views";
 type Props = {
-  client: App<"rtm">;
-  oldClient: Slack;
-  currentChannel: () => string;
-  userBoot:
-    | ({
-        ok: true;
-      } & ClientUserBootResponse)
-    | null;
-  localData: Record<string, any>;
+  state: Store<StateType>;
+  setState: SetStoreFunction<StateType>;
+  // client: App<"rtm">;
+  // oldClient: Slack;
+  // currentChannel: () => string;
+  // userBoot:
+  //   | ({
+  //       ok: true;
+  //     } & ClientUserBootResponse)
+  //   | null;
+  // localData: Record<string, any>;
+};
+
+type HistoryCache = {
+  messages: CachedMessage[];
+  updatedAt: number;
 };
 
 export default function Chat(props: Props) {
@@ -27,32 +35,79 @@ export default function Chat(props: Props) {
   const [state, setState] = createStore<{
     history: Record<string, any>;
     channelUserList: Record<string, any>[];
+    loadingHistory: boolean;
     emojiList: {
       show: boolean;
       preventionEnabled: boolean;
     };
   }>({
     history: {},
-    channelUserList: [],
+    channelUserList: (props.state.userBoot as any)?.users ?? [],
+    loadingHistory: true,
     emojiList: {
       show: false,
       preventionEnabled: false,
     },
   });
 
+  const loadCachedHistory = (channelId: string): HistoryCache | null => {
+    try {
+      const raw = props.state.cacheStore.get(
+        `messages:${props.state.userBoot.self.profile.team}:${channelId}`,
+      );
+      if (typeof raw !== "string") return null;
+      return JSON.parse(raw) as HistoryCache;
+    } catch {
+      return null;
+    }
+  };
+
+  const saveCachedHistory = (channelId: string, messages: any[]) => {
+    const teamId = props.state.userBoot.self.profile.team;
+    if (!teamId || !channelId) return;
+    try {
+      const slim: CachedMessage[] = messages.slice(-30).map((msg) => ({
+        ts: msg.ts,
+        user: msg.user ?? "",
+        text: msg.text ?? "",
+        ...(msg.thread_ts && { thread_ts: msg.thread_ts }),
+        ...(msg.blocks?.length && { blocks: msg.blocks }),
+      }));
+      const cache: HistoryCache = { messages: slim, updatedAt: Date.now() };
+      props.state.cacheStore.set(
+        `messages:${teamId}:${channelId}`,
+        JSON.stringify(cache),
+      );
+      props.state.cacheStore.save();
+    } catch {}
+  };
+  
   const scrollToBottom = (force?: boolean) => {
     requestAnimationFrame(() => {
       if (!messagesList) return;
 
-      const threshold = 300;
+      const threshold = 400;
       const distanceFromBottom =
         messagesList.scrollHeight -
         messagesList.scrollTop -
         messagesList.clientHeight;
 
-      if (distanceFromBottom < threshold || force) {
+      if (force || distanceFromBottom < threshold) {
         messagesList.scrollTop = messagesList.scrollHeight;
       }
+    });
+  };
+  
+  const setupImageScrollListeners = () => {
+    requestAnimationFrame(() => {
+      if (!messagesList) return;
+      const images = messagesList.querySelectorAll("img");
+      images.forEach((img) => {
+        if (!img.complete) {
+          img.addEventListener("load", () => scrollToBottom(true), { once: true });
+          img.addEventListener("error", () => scrollToBottom(true), { once: true });
+        }
+      });
     });
   };
 
@@ -75,36 +130,75 @@ export default function Chat(props: Props) {
 
   const getConvHistory = async (channelId: string) => {
     if (!channelId) return;
-
-    unlisten?.();
-    unlisten = undefined;
-
-    const [channelUserList, data] = await Promise.all([
-      props.client.request("users.list", {
-        limit: 77,
-      }),
-      props.client.request("conversations.history", {
-        channel: channelId,
-      }),
-    ]);
-    if (channelUserList?.ok) {
+    const rtmCached = props.state.messageCache[channelId] ?? [];
+    const cached = loadCachedHistory(channelId)?.messages ?? [];
+  
+    const merged = [...rtmCached, ...cached];
+  
+    if (merged.length) {
+      const deduped = Object.values(
+        merged.reduce((acc, msg) => {
+          acc[msg.ts] = msg;
+          return acc;
+        }, {} as Record<string, any>)
+      ).sort((a, b) => parseFloat(a.ts) - parseFloat(b.ts));
+  
+      setState("history", { ok: true, messages: deduped });
+      scrollToBottom(true);
+      setupImageScrollListeners();
+      setState("loadingHistory", false);
+    }
+  
+    const latest =
+      rtmCached?.at(-1)?.ts ??
+      loadCachedHistory(channelId)?.messages?.at(-1)?.ts;
+  
+    const usersPromise =
+      state.channelUserList.length === 0
+        ? props.state.client.request("users.list", { limit: 77 })
+        : Promise.resolve(null as any);
+  
+    const data = await props.state.client.request("conversations.history", {
+      channel: channelId,
+      ...(latest ? { oldest: latest } : {}),
+    });
+  
+    const channelUserList = await usersPromise;
+    if (channelUserList?.ok && channelUserList.members?.length) {
       setState("channelUserList", channelUserList.members);
     }
-
+  
     if (data?.ok) {
       await fetchMissingUsers(
-        channelUserList.members ?? [],
+        (channelUserList?.members ?? state.channelUserList) as Record<string, any>[],
         data.messages ?? [],
       );
-
-      setState("history", {
-        ...data,
-        messages: [...data.messages].reverse(),
-      });
-
+  
+      const normalizedMessages = [...data.messages].reverse();
+      console.log(normalizedMessages)
+      if (latest && normalizedMessages.length > 0) {
+        setState("history", "messages", (prev: any[]) => {
+          const apiByTs = normalizedMessages.reduce((acc, msg) => {
+            acc[msg.ts] = msg;
+            return acc;
+          }, {} as Record<string, any>);
+  
+          const hydrated = prev.map((msg) => apiByTs[msg.ts] ?? msg);
+          console.log(normalizedMessages)
+          const newMsgs = normalizedMessages.filter(
+            (msg) => parseFloat(msg.ts) > parseFloat(latest)
+          );
+  
+          return [...hydrated, ...newMsgs];
+        });
+      } else if (!latest) {
+        setState("history", { ...data, messages: normalizedMessages });
+      }
+  
+      saveCachedHistory(channelId, state.history.messages ?? []);
       scrollToBottom(true);
-
-      props.client.on("message", async (msg) => {
+  
+      props.state.client.on("message", async (msg) => {
         if (
           msg.channel.id !== channelId ||
           msg.hidden === true ||
@@ -113,39 +207,37 @@ export default function Chat(props: Props) {
           return;
         if (
           msg.user ===
-          props.localData.teams[props.localData.lastActiveTeamId].user_id
+          props.state.localData.teams[props.state.localData.lastActiveTeamId].user_id
         ) {
           const alreadyExists =
             state.history.messages.some(
               (m: GenericMessageEvent) =>
                 m.user === msg.user && m.ts === msg.ts && m.text === msg.text,
             ) || pendingMessages.has(msg.text as string);
-
-          if (alreadyExists) {
-            return;
-          }
-
+          if (alreadyExists) return;
           if (pendingMessages.has(msg.text as string)) {
             pendingMessages.delete(msg.text as string);
           }
         }
-
         await fetchMissingUsers(state.channelUserList, [msg]);
         setState("history", "messages", (prev: any[]) => [...prev, msg]);
+        saveCachedHistory(channelId, [...state.history.messages, msg]);
         scrollToBottom();
       });
     }
+  
+    setState("loadingHistory", false);
   };
-
+  
   const sendMessage = async (text: string) => {
-    const channelId = props.currentChannel();
+    const channelId = props.state.currentChannel;
     if (!channelId) return;
     const tempTs = Date.now().toString();
     const optimisticMessage = {
       type: "message",
       ts: tempTs,
       text,
-      user: props.userBoot.self.id,
+      user: props.state.userBoot.self.id,
     };
     pendingMessages.add(text);
 
@@ -155,7 +247,7 @@ export default function Chat(props: Props) {
     ]);
 
     scrollToBottom();
-    const data = await props.client.channel(channelId).send({
+    const data = await props.state.client.channel(channelId).send({
       text,
     });
     setState("history", "messages", (prev: any[]) =>
@@ -186,7 +278,7 @@ export default function Chat(props: Props) {
     if (updatedIdsInput.length === 0) return;
 
     try {
-      const response = await props.oldClient.userIdToUser({
+      const response = await props.state.oldClient.userIdToUser({
         userIds: updatedIdsInput,
       });
       const newUsers = response?.results ?? ([] as []);
@@ -201,7 +293,7 @@ export default function Chat(props: Props) {
   };
 
   onMount(async () => {
-    const channel = props.currentChannel();
+    const channel = props.state.currentChannel;
     if (channel) {
       await getConvHistory(channel);
     }
@@ -217,12 +309,12 @@ export default function Chat(props: Props) {
         ref={(el) => (messagesList = el)}
         class="overflow-y-auto overflow-x-hidden flex-1 space-y-2 p-4"
       >
-        <Show
-          when={
-            Object.keys(state.history).length > 0 &&
-            state.channelUserList.length > 0
-          }
-        >
+        <Show when={state.loadingHistory && !state.history.messages?.length}>
+          <For each={Array.from({ length: 30 }, (_, i) => i + 1)}>
+            {() => <li class="h-6 rounded bg-ctp-surface0/70 animate-pulse" />}
+          </For>
+        </Show>
+        <Show when={Object.keys(state.history).length > 0}>
           <For each={state.history.messages}>
             {(message, index) => {
               const prev = () => state.history.messages[index() - 1];
@@ -264,7 +356,7 @@ export default function Chat(props: Props) {
                           ),
                         resolveChannel: (id) => "potato " + id,
                       },
-                      props.oldClient,
+                      props.state.oldClient,
                     )}
                   </div>
                 </li>

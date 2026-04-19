@@ -4,7 +4,7 @@ import { useNavigate } from "@solidjs/router";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { SafeStore } from "../lib/safeStore";
 import { getPassword, setPassword } from "tauri-plugin-keyring-api";
-import Suri from "/suri.svg";
+import Suri from "../assets/suri.svg";
 
 export default function Login() {
   const nav = useNavigate();

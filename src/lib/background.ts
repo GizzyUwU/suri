@@ -2,7 +2,7 @@ import { KnownBlock } from "@slack/web-api";
 import { ClientUserBootResponse } from "slack-undoc-client";
 import { App } from "slack.ts";
 import { SetStoreFunction, Store } from "solid-js/store";
-import { StateType } from "../views";
+import { CachedMessage, StateType } from "../views";
 
 export function extractMentionedUserIds(event: {
   blocks?: KnownBlock[];
@@ -44,6 +44,19 @@ export default async function backgroundThings({
     const channelId = msg.channel.id;
     const currentUserId = userBoot?.self?.id;
 
+    if (state.currentChannel !== msg.channel.id) {
+      const slim: CachedMessage = {
+        ts: msg.ts,
+        user: msg.user,
+        text: msg.text ?? "",
+        ...(msg.thread_ts && { thread_ts: msg.thread_ts }),
+        ...(msg.blocks?.length && { blocks: msg.blocks }),
+      };
+  
+      setState("messageCache", msg.channel.id, (msgs = []) =>
+        [...msgs, slim].slice(-50)
+      );
+    }
     if (currentUserId && mentionedUsers.includes(currentUserId)) {
       setState(
         "channels",

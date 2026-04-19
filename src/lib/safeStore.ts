@@ -29,8 +29,8 @@ export class SafeStore {
         this.ready = Promise.resolve();
     }
 
-    static async use(key: string, username: string): Promise<SafeStore> {
-        const store = await load('slack-' + username + ".json", {
+    static async use(key: string, username: string, prefix?: string): Promise<SafeStore> {
+        const store = await load((!prefix ? 'slack-' : prefix) + username + ".json", {
             autoSave: false,
             defaults: {},
         })
@@ -92,7 +92,7 @@ export class SafeStore {
             combined.set(new Uint8Array(ciphertext), iv.byteLength);
             const edata = bytesToHex(combined);
             this.store.set("encrypted", { edata })
-            this.store.save();
+            await this.store.save();
         } catch (err) {
             if (err instanceof Error) {
                 throw new Error(err.message)

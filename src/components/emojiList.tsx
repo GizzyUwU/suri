@@ -1,11 +1,11 @@
-import { createStore } from "solid-js/store";
+import { createStore, SetStoreFunction, Store } from "solid-js/store";
 import { onCleanup } from "solid-js";
 import { Slack } from "../lib/slacktism";
+import { StateType } from "../views";
 
 type Props = {
-  oldClient: Slack;
-  currentChannel: () => string;
-  localData: Record<string, any>;
+  state: Store<StateType>;
+  setState: SetStoreFunction<StateType>;
   close: () => void;
 };
 
