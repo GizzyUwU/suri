@@ -4,7 +4,6 @@
   "version": "0.1.0",
   "identifier": "com.gizzy.suri",
   "build": {
-    "beforeDevCommand": "bun run dev-server",
     "devUrl": "http://localhost:1420",
     "beforeBuildCommand": "bun run build:ui",
     "frontendDist": "../dist"

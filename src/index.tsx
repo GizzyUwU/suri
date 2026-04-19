@@ -5,12 +5,17 @@ import Fallback from "./views/fallback";
 import Login from "./views/login"
 import Index from "./views/index";
 import "./css/index.css"
-window.addEventListener("beforeunload", async () => {
-    await window.__TAURI__.core.invoke("reload_window");
+
+let reloadRequested = false;
+window.addEventListener("unhandledrejection", (event) => {
+  console.log(event)
+    console.error("[global] unhandled promise rejection", event.reason);
 });
 
-window.addEventListener("popstate", () => {
-    history.pushState(null, document.title, window.location.href);
+window.addEventListener("beforeunload", () => {
+    if (reloadRequested) return;
+    reloadRequested = true;
+    void window.__TAURI__.core.invoke("reload_window");
 });
 
 render(

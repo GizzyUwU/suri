@@ -33,7 +33,7 @@
     "fast-escape-html": "^1.1.0",
     "patch-package": "^8.0.1",
     "slack-undoc-client": "^1.1.1",
-    "slack.ts": "^0.0.18",
+    "slack.ts": "0.0.18",
     "solid-js": "^1.9.12",
     "tailwindcss": "^4.2.2",
     "tauri-plugin-keyring-api": "^0.1.1"
@@ -45,7 +45,6 @@
     "typescript": "~5.6.3",
     "unplugin-icons": "^23.0.1",
     "vite": "^6.4.1",
-    "vite-plugin-node-polyfills": "^0.26.0",
     "vite-plugin-solid": "^2.11.11"
   },
   "patchedDependencies": {

@@ -1,7 +1,13 @@
 import { fetch } from "@tauri-apps/plugin-http";
 import WebSocket from "@tauri-apps/plugin-websocket";
 import type { RichTextBlock } from "@slack/web-api";
-import type * as SlackT from "./slack.d";
+import type * as SlackT from "./slack";
+import EventEmitter from "eventemitter3";
+import { SlackEvent, } from '@slack/types';
+type SlackEventType = SlackEvent['type'];
+
+// Listen for users who join a channel that the bot user is a member of
+// See: /reference/events/member_joined_channel
 
 // ─── Core types ──────────────────────────────────────────────────────────────
 
@@ -116,7 +122,7 @@ export class Slack {
   private pingId = 0;
   private destroyed = false;
   private websocketUrls: WebSocketUrls | null = null;
-
+  private emitter = new EventEmitter();
   private listeners = new Map<string, Set<Listener>>();
   private readonly ready: Promise<void>;
 
@@ -171,6 +177,12 @@ export class Slack {
   async getChannelSections(): Promise<SlackT.UsersChannelSectionsListResponse> {
     return this.api<SlackT.UsersChannelSectionsListResponse>(
       "users.channelSections.list",
+    );
+  }
+  
+  async getClientCounts(): Promise<SlackT.ClientCountsResponse> {
+    return this.api<SlackT.ClientCountsResponse>(
+      "client.counts",
     );
   }
 
@@ -264,6 +276,86 @@ export class Slack {
     });
 
     return this.parseResponse<SlackT.UserIdToUserResponse>(response);
+  }
+  
+  async checkEmojis(
+    options: SlackT.checkEmojisOptions,
+  ): Promise<SlackT.UserIdToUserResponse> {
+    await this.ready;
+
+    const opts = {
+      ...options,
+    } as SlackT.checkEmojisOptions;
+
+    const enterpriseId = this.user.self.profile.team
+    const url = `https://edgeapi.slack.com/cache/${enterpriseId}/users/info?_x_app_name=client&fp=7b&_x_num_retries=0`;
+
+    const response = await fetch(url, {
+      method: "POST",
+      body: JSON.stringify({
+        token: this.token,
+        updated_ids: Object.fromEntries(
+          opts.emojis.map((u) => [u.name, u.epoch ?? 0]),
+        ),
+        enterprise_token: this.token
+      }),
+      headers: this.cookieHeaders(),
+    });
+
+    return this.parseResponse<SlackT.checkEmojisResponse>(response);
+  }
+  
+  
+  async queryEmoji(
+    options: SlackT.EmojiSearchOptions,
+  ): Promise<SlackT.EmojiSearchResponse> {
+    await this.ready;
+
+    const opts = {
+      count: 250,
+      ...options,
+    } as SlackT.EmojiSearchOptions;
+
+    const enterpriseId = this.user.self.profile.team
+    const url = `https://edgeapi.slack.com/cache/${enterpriseId}/emojis/search?_x_app_name=client&fp=7b&_x_num_retries=0`;
+
+    const response = await fetch(url, {
+      method: "POST",
+      body: JSON.stringify({
+        token: this.token,
+        ...opts,
+        enterprise_token: this.token
+      }),
+      headers: this.cookieHeaders(),
+    });
+
+    return this.parseResponse<SlackT.EmojiSearchResponse>(response);
+  }
+  
+  async listEmoji(
+    options: SlackT.EmojiSearchOptions,
+  ): Promise<SlackT.EmojiSearchResponse> {
+    await this.ready;
+
+    const opts = {
+      count: 250,
+      ...options,
+    } as SlackT.EmojiSearchOptions;
+
+    const enterpriseId = this.user.self.profile.team
+    const url = `https://edgeapi.slack.com/cache/${enterpriseId}/emojis/search?_x_app_name=client&fp=7b&_x_num_retries=0`;
+
+    const response = await fetch(url, {
+      method: "POST",
+      body: JSON.stringify({
+        token: this.token,
+        ...opts,
+        enterprise_token: this.token
+      }),
+      headers: this.cookieHeaders(),
+    });
+
+    return this.parseResponse<SlackT.EmojiSearchResponse>(response);
   }
 
   async getImageDataFromSlack(url: string): Promise<string> {

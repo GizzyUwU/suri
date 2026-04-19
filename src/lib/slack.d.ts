@@ -22770,20 +22770,6 @@ export type UsersInfoResponse = {
   };
 };
 
-export type UserIdToUsersOptions = {
-  userIds: Array<{
-    userId: string;
-    epoch?: number
-  }>;
-  checkInteraction?: boolean;
-  include_profile_only_users?: boolean;
-}
-
-export type UserIdToUserResponse = {
-  ok: boolean;
-  results: Array<UserInfoResponse.user>
-}
-
 export type UsersInteractionsListResponse = {
   ok: true;
   interactions: Array<{
@@ -25662,4 +25648,62 @@ export interface SlackApiMap {
   "workflows.triggers.prefs.get": { params: WorkflowsTriggersPrefsGetParams; response: WorkflowsTriggersPrefsGetResponse };
   "workflows.triggers.types.list": { params: WorkflowsTriggersTypesListParams; response: WorkflowsTriggersTypesListResponse };
   "workflows.triggers.update": { params: WorkflowsTriggersUpdateParams; response: WorkflowsTriggersUpdateResponse };
+}
+
+export type UserIdToUsersOptions = {
+  userIds: Array<{
+    userId: string;
+    epoch?: number
+  }>;
+  checkInteraction?: boolean;
+  include_profile_only_users?: boolean;
+}
+
+export type UserIdToUserResponse = {
+  ok: boolean;
+  results: Array<UserInfoResponse.user>
+}
+
+export type EmojiSearchOptions = {
+  query: string,
+  count?: number
+}
+
+export type EmojiSearchResponse = {
+  ok: boolean;
+  results: Array<{
+    name: string,
+    value: string,
+    updated: number;
+  }>
+}
+export type EmojiSearchOptions = {
+  count?: number
+  marker?: string
+}
+
+export type EmojiSearchResponse = {
+  ok: boolean;
+  next_marker: string
+  results: Array<{
+    name: string,
+    value: string,
+    updated: number;
+  }>
+}
+
+export type checkEmojisOptions = {
+  emojis: Array<{
+    name: string;
+    epoch?: number
+  }>;
+}
+
+export type checkEmojisResponse = {
+  ok: boolean;
+  results: Array<{
+    name: string,
+    value: string,
+    updated: number;
+  }>
 }

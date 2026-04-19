@@ -27,6 +27,9 @@
       "identifier": "http:default",
       "allow": [
         {
+          "url": "https://slack.com"
+        },
+        {
           "url": "https://*.slack.com"
         },
         {

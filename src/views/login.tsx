@@ -57,12 +57,16 @@ export default function Login() {
       const lConfig = data()?.get("lConfig");
       setLocalConfig(lConfig);
       setTokenStore(dToken);
-      return nav("/authed");
+      return nav("/authed", {
+        replace: true
+      });
     }
 
     if (localConf() && token()) {
       console.log("a")
-      return nav("/authed")
+      return nav("/authed", {
+        replace: true
+      })
     }
     const appWebview = getCurrentWebviewWindow();
     console.log("d")
@@ -76,7 +80,9 @@ export default function Login() {
           data()?.set("lConfig", event.payload)
           await data()?.save();
           console.log("b")
-          return nav("/authed")
+          return nav("/authed", {
+            replace: true
+          })
         }
       }, 500)
     });

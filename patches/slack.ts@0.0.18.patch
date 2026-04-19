@@ -1,0 +1,19 @@
+diff --git a/node_modules/slack.ts/.bun-tag-81fde10c90e4ce02 b/.bun-tag-81fde10c90e4ce02
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/node_modules/slack.ts/.bun-tag-f55747502e79736b b/.bun-tag-f55747502e79736b
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/dist/error.js b/dist/error.js
+index f1b8df92560aa9e1c65309cd4b820ebd50a8e8bc..028dffa3332e0eab27353d7f09253df62aa522e5 100644
+--- a/dist/error.js
++++ b/dist/error.js
+@@ -13,7 +13,7 @@ export class SlackWebAPIError extends SlackError {
+     url;
+     data;
+     constructor(url, data) {
+-        super(`Fetch ${url} failed`);
++      super(`Fetch ${url} failed, ${JSON.stringify(data)}`);
+         this.url = url;
+         this.data = data;
+     }

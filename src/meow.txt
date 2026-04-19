@@ -1,0 +1,51 @@
+blocks: [Object] (1)
+
+channel: "C09MPB8NE8H"
+
+client_msg_id: "167e62cb-ff6a-428d-ac43-260f1e8fa01d"
+
+event_ts: "1775465942.085019"
+
+source_team: "E09V59WQY1E"
+
+suppress_notification: false
+
+team: "T0266FRGM"
+
+text: ":sob:"
+
+thread_ts: "1771665051.282799"
+
+ts: "1775465942.085019"
+
+type: "message"
+
+user: "U091KALMG3Y"
+
+user_team: "E09V59WQY1E"
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+blocks: [Object] (1)
+
+channel: "C08LB5YF6F3"
+
+client_msg_id: "d905ac59-557a-4ff6-bc1e-02b0f4d30dfe"
+
+event_ts: "1775466036.660389"
+
+source_team: "E09V59WQY1E"
+
+suppress_notification: false
+
+team: "T0266FRGM"
+
+text: "colon threee"
+
+ts: "1775466036.660389"
+
+type: "message"
+
+user: "U08D3AY7BG8"
+
+user_team: "E09V59WQY1E"
