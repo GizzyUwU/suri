@@ -9,7 +9,7 @@ import "../css/index.css";
 import { SafeStore } from "../lib/safeStore";
 import { getPassword } from "tauri-plugin-keyring-api";
 import { tauriStorage } from "@solid-primitives/storage/tauri";
-import { App } from "slack.ts";
+import { App, Message, MessageInstance } from "slack.ts";
 import { load, Store } from "@tauri-apps/plugin-store";
 
 import type {
@@ -17,7 +17,7 @@ import type {
   ClientUserBootResponse,
 } from "slack-undoc-client";
 import backgroundThings from "../lib/background";
-import { KnownBlock } from "@slack/web-api";
+import { ConversationsHistoryResponse, KnownBlock } from "@slack/web-api";
 
 function orderSections(sections: any) {
   const map = new Map();
@@ -79,14 +79,6 @@ export type EnrichedChannel = Channel &
     count?: number;
   };
 
-export type CachedMessage = {
-  ts: string;
-  user: string;
-  text: string;
-  blocks?: KnownBlock[];
-  thread_ts?: string;
-};
-
 export type StateType = {
   channels: EnrichedChannel[];
   client: App<"rtm"> | null;
@@ -101,7 +93,7 @@ export type StateType = {
   expandedSections: Record<string, boolean>;
   sections: any[];
   cacheStore: SafeStore | null;
-  messageCache: Record<string, CachedMessage[]>;
+  messageCache: Record<string, ConversationsHistoryResponse["messages"]>;
   isBooting: boolean;
 };
 
@@ -195,52 +187,65 @@ export default function Index() {
 
   onMount(async () => {
     if (!token() || !localConfig()) return nav("/");
-  
-    const user = await window.__TAURI__.core.invoke<{ uid: number; name: string; primary_group: number }>("sys_user");
+
+    const user = await window.__TAURI__.core.invoke<{
+      uid: number;
+      name: string;
+      primary_group: number;
+    }>("sys_user");
     const key = (await getPassword("suri", user.name)) ?? "";
     const store = await SafeStore.use(key, user.name);
     setState("cacheStore", await SafeStore.use(key, user.name, "cache-"));
     setSafeData(store);
-  
+
     const data = JSON.parse(localConfig());
     setState("localData", data);
     const { lastActiveTeamId } = data;
     const workspace = data.teams[lastActiveTeamId];
-  
+
     const cachedSidebar = await loadSidebarCache(lastActiveTeamId);
     if (cachedSidebar) {
       setState({
         channels: cachedSidebar.channels,
         sections: cachedSidebar.sections,
         expandedSections: cachedSidebar.expandedSections,
-        currentChannel: persist.lastActiveChannel ?? cachedSidebar.lastChannel ?? "",
+        currentChannel:
+          persist.lastActiveChannel ?? cachedSidebar.lastChannel ?? "",
         isBooting: false,
       });
     }
-  
-    let url = workspace.url.trim().replace(/^(?!https?:\/\/)/i, "https://").replace(/\/$/, "");
+
+    let url = workspace.url
+      .trim()
+      .replace(/^(?!https?:\/\/)/i, "https://")
+      .replace(/\/$/, "");
     const client = new Slack(url, workspace.token, token());
     const app = new App({
       receiver: { type: "rtm" },
       token: { cookie: token(), token: workspace.token },
     });
     await app.start();
-  
+
     const [userBoot, sectionsRaw] = await Promise.all([
       app.request("client.userBoot", {}),
       app.request("users.channelSections.list", {}),
     ]);
     const countsPromise = app.request("client.counts", {});
-  
+
     setState("userBoot", userBoot);
     backgroundThings({ app, state, setState, userBoot });
-  
-    const priorities: Record<string, number> = (userBoot.channels_priority as Record<string, number> | undefined) ?? {};
+
+    const priorities: Record<string, number> =
+      (userBoot.channels_priority as Record<string, number> | undefined) ?? {};
     const sortedChannels = [...(userBoot.channels as EnrichedChannel[])].sort(
       (a, b) => (priorities[b.id] ?? 0) - (priorities[a.id] ?? 0),
     );
-    const currentChannel = persist.lastActiveChannel ?? state.currentChannel ?? sortedChannels[0]?.id ?? "";
-  
+    const currentChannel =
+      persist.lastActiveChannel ??
+      state.currentChannel ??
+      sortedChannels[0]?.id ??
+      "";
+
     setState({
       channels: sortedChannels,
       client: app,
@@ -248,10 +253,12 @@ export default function Index() {
       currentChannel,
       isBooting: false,
     });
-  
-    const expandedSections = buildExpandedSections(sectionsRaw.channel_sections);
+
+    const expandedSections = buildExpandedSections(
+      sectionsRaw.channel_sections,
+    );
     setState({ sections: sectionsRaw.channel_sections, expandedSections });
-  
+
     const sidebarSnapshot = () => ({
       teamId: lastActiveTeamId,
       channels: state.channels,
@@ -260,25 +267,40 @@ export default function Index() {
       lastChannel: state.currentChannel,
       updatedAt: Date.now(),
     });
-  
-    saveSidebarCache({ ...sidebarSnapshot(), channels: sortedChannels, expandedSections, lastChannel: currentChannel });
-  
+
+    saveSidebarCache({
+      ...sidebarSnapshot(),
+      channels: sortedChannels,
+      expandedSections,
+      lastChannel: currentChannel,
+    });
+
     countsPromise.then((clientCounts) => {
-      const countsMap = new Map(clientCounts.channels.map((c: any) => [c.id, c]));
-      setState("channels", (channels) =>
-        channels.map((channel) => ({ ...channel, ...(countsMap.get(channel.id) ?? {}) })) as EnrichedChannel[],
+      const countsMap = new Map(
+        clientCounts.channels.map((c: any) => [c.id, c]),
+      );
+      setState(
+        "channels",
+        (channels) =>
+          channels.map((channel) => ({
+            ...channel,
+            ...(countsMap.get(channel.id) ?? {}),
+          })) as EnrichedChannel[],
       );
       saveSidebarCache(sidebarSnapshot());
     });
   });
-  
+
   function buildExpandedSections(sections: any[]): Record<string, boolean> {
     return orderSections(sections).reduce(
-      (acc: Record<string, boolean>, s: any) => ({ ...acc, [s.channel_section_id]: true }),
+      (acc: Record<string, boolean>, s: any) => ({
+        ...acc,
+        [s.channel_section_id]: true,
+      }),
       {},
     );
   }
-  
+
   // onMount(async () => {
   //   if (!token() || !localConfig()) return nav("/");
   //   const user: {
@@ -464,9 +486,8 @@ export default function Index() {
                                     }}
                                     onClick={async (e) => {
                                       e.preventDefault();
-                                      await navigateToChannel(channel().id)
-                                    }
-                                    }
+                                      await navigateToChannel(channel().id);
+                                    }}
                                   >
                                     <span>{channel().name}</span>
                                   </li>

@@ -4,7 +4,7 @@ import {
   RichTextBlock,
   RichTextElement,
 } from "@slack/web-api";
-import type { Slack } from "./slack";
+import type { Slack } from "./slacktism";
 import { parseMarkdownToSlackBlocks } from "./parseMrkdwn";
 import { JSX } from "solid-js";
 
@@ -361,6 +361,25 @@ export function parseSlackMessageJSX(
           <img
             data-slack-url={bestThumb.url}
             alt={file.name}
+            ref={(el) => {
+              if (!el || !client) return;
+              // Hide the parent container until image is ready
+              const container = el.parentElement as HTMLElement;
+              container.style.display = "none";
+              
+              client
+                .getImageDataFromSlack(bestThumb.url)
+                .then((blobUrl) => {
+                  el.src = blobUrl;
+                  el.onload = () => {
+                    container.style.display = "";
+                  };
+                })
+                .catch((err) => {
+                  console.error("Slack image failed", err);
+                  container.style.display = ""; // show anyway on error
+                });
+            }}
             loading="lazy"
             style={{
               width: "100%",
@@ -368,15 +387,15 @@ export function parseSlackMessageJSX(
               "object-fit": "contain",
               display: "block",
             }}
-            ref={(el) => {
-              if (!el || !client) return;
-              client
-                .getImageDataFromSlack(bestThumb.url)
-                .then((blobUrl) => {
-                  el.src = blobUrl;
-                })
-                .catch((err) => console.error("Slack image failed", err));
-            }}
+            // ref={(el) => {
+            //   if (!el || !client) return;
+            //   client
+            //     .getImageDataFromSlack(bestThumb.url)
+            //     .then((blobUrl) => {
+            //       el.src = blobUrl;
+            //     })
+            //     .catch((err) => console.error("Slack image failed", err));
+            // }}
           />
         </div>,
       );
