@@ -1,6 +1,4 @@
-import { Slack } from "../lib/slacktism";
-import { App } from "slack.ts";
-import { onCleanup, onMount, For, Show } from "solid-js";
+import { onCleanup, onMount, For, Show, createEffect, on } from "solid-js";
 import { createStore, SetStoreFunction, Store } from "solid-js/store";
 import { parseSlackMessageJSX } from "../lib/messageParser";
 import { GenericMessageEvent } from "@slack/web-api";
@@ -24,6 +22,8 @@ type Props = {
 export default function Chat(props: Props) {
   let messagesList: HTMLUListElement | undefined;
   let unlisten: (() => void) | undefined;
+  let usersListPromise: Promise<any> | null = null;
+  let historyRequestId = 0;
   const pendingMessages = new Set<string>();
 
   const [state, setState] = createStore<{
@@ -78,91 +78,62 @@ export default function Chat(props: Props) {
   const getConvHistory = async (channelId: string) => {
     if (!channelId) return;
 
-    const networkReq = Promise.all([
-      props.state.client.request("users.list", {
-        limit: 77,
-      }),
+    const cachedMessages = props.state.messageCache[channelId] ?? [];
+    setState("history", {
+      ok: true,
+      messages: [...cachedMessages],
+    });
+    scrollToBottom(true);
+
+    const requestId = ++historyRequestId;
+    const [channelUserList, data] = await Promise.all([
+      ensureUsersList(),
       props.state.client.request("conversations.history", {
         channel: channelId,
-        limit: 50,
       }),
     ]);
 
-    const cached = await props.state.cacheStore.get("messages:" + channelId);
-    if (cached) {
-      console.log("Cached");
-      setState({
-        history: cached,
-        channelUserList: cached._userList ?? [],
-      });
-      scrollToBottom(true);
-    }
-
-    const [channelUserList, data] = await networkReq;
+    if (requestId !== historyRequestId) return;
 
     if (channelUserList?.ok) {
       setState("channelUserList", channelUserList.members);
     }
 
     if (data?.ok) {
-      await fetchMissingUsers(
-        channelUserList.members ?? [],
-        data.messages ?? [],
-      );
+      const reversedMessages = [...(data.messages ?? [])].reverse();
 
       setState("history", {
         ...data,
-        messages: [...data.messages].reverse(),
+        messages: reversedMessages,
       });
+
+      props.setState("messageCache", channelId, reversedMessages as any);
 
       scrollToBottom(true);
 
-      props.state.cacheStore.set("messages:" + channelId, {
-        ...data,
-        messages: [...data.messages].reverse().slice(50),
-        _userList: state.channelUserList,
-      });
-
-      await props.state.cacheStore.save();
-
-      props.state.client.on("message", async (msg) => {
-        if (
-          msg.channel.id !== channelId ||
-          msg.hidden === true ||
-          msg.thread_ts
-        )
-          return;
-        if (
-          msg.user ===
-          props.state.localData.teams[props.state.localData.lastActiveTeamId]
-            .user_id
-        ) {
-          const alreadyExists =
-            state.history.messages.some(
-              (m: GenericMessageEvent) =>
-                m.user === msg.user && m.ts === msg.ts && m.text === msg.text,
-            ) || pendingMessages.has(msg.text as string);
-
-          if (alreadyExists) {
-            return;
-          }
-
-          if (pendingMessages.has(msg.text as string)) {
-            pendingMessages.delete(msg.text as string);
-          }
-        }
-
-        await fetchMissingUsers(state.channelUserList, [msg]);
-        setState("history", "messages", (prev: any[]) => [...prev, msg]);
-        props.state.cacheStore.set("messages:" + channelId, {
-          ...state.history,
-          messages: state.history.messages.slice(-50),
-          _userList: state.channelUserList,
-        });
-        await props.state.cacheStore.save();
-        scrollToBottom();
-      });
+      fetchMissingUsers(channelUserList.members ?? [], reversedMessages);
     }
+  };
+
+  const ensureUsersList = async () => {
+    if (state.channelUserList.length > 0) {
+      return {
+        ok: true,
+        members: state.channelUserList,
+      };
+    }
+
+    if (!usersListPromise) {
+      usersListPromise = props.state.client
+        .request("users.list", {
+          limit: 500,
+        })
+        .finally(() => {
+          usersListPromise = null;
+        });
+    }
+
+    return usersListPromise;
   };
 
   const sendMessage = async (text: string) => {
@@ -181,14 +152,20 @@ export default function Chat(props: Props) {
       ...prev,
       optimisticMessage,
     ]);
+    props.setState("messageCache", channelId, (prev = []) => [
+      ...prev,
+      optimisticMessage,
+    ] as any);
 
     scrollToBottom();
     const data = await props.state.client.channel(channelId).send({
       text,
     });
-    setState("history", "messages", (prev: any[]) =>
-      prev.map((msg) => (msg.ts === tempTs ? data : msg)),
-    );
+    setState("history", "messages", (prev: any[]) => {
+      const next = prev.map((msg) => (msg.ts === tempTs ? data : msg));
+      props.setState("messageCache", channelId, next as any);
+      return next;
+    });
     pendingMessages.delete(text);
   };
 
@@ -228,12 +205,59 @@ export default function Chat(props: Props) {
     }
   };
 
-  onMount(async () => {
-    const channel = props.state.currentChannel;
-    if (channel) {
-      await getConvHistory(channel);
+  onMount(() => {
+    const maybeUnlisten = props.state.client.on("message", async (msg) => {
+      const channelId = props.state.currentChannel;
+      if (
+        msg.channel.id !== channelId ||
+        msg.hidden === true ||
+        msg.thread_ts
+      )
+        return;
+
+      if (
+        msg.user ===
+        props.state.localData.teams[props.state.localData.lastActiveTeamId].user_id
+      ) {
+        const alreadyExists =
+          state.history.messages.some(
+            (m: GenericMessageEvent) =>
+              m.user === msg.user && m.ts === msg.ts && m.text === msg.text,
+          ) || pendingMessages.has(msg.text as string);
+
+        if (alreadyExists) {
+          return;
+        }
+
+        if (pendingMessages.has(msg.text as string)) {
+          pendingMessages.delete(msg.text as string);
+        }
+      }
+
+      fetchMissingUsers(state.channelUserList, [msg]);
+      setState("history", "messages", (prev: any[]) => {
+        const next = [...prev, msg];
+        props.setState("messageCache", channelId, next as any);
+        return next;
+      });
+      scrollToBottom();
+    });
+
+    if (typeof maybeUnlisten === "function") {
+      unlisten = maybeUnlisten;
     }
   });
+
+  createEffect(
+    on(
+      () => props.state.currentChannel,
+      (channel) => {
+        if (channel) {
+          getConvHistory(channel);
+        }
+      },
+    ),
+  );
 
   onCleanup(() => {
     unlisten?.();
@@ -246,9 +270,7 @@ export default function Chat(props: Props) {
         class="overflow-y-auto overflow-x-hidden flex-1 space-y-2 p-4"
       >
         <Show
-          when={
-            Object.keys(state.history).length > 0
-          }
+          when={Object.keys(state.history).length > 0}
         >
           <For each={state.history.messages}>
             {(message, index) => {
