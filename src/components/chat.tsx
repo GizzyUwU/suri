@@ -79,17 +79,28 @@ export default function Chat(props: Props) {
   const getConvHistory = async (channelId: string) => {
     if (!channelId) return;
 
-    unlisten?.();
-    unlisten = undefined;
-
-    const [channelUserList, data] = await Promise.all([
+    const networkReq = Promise.all([
       props.state.client.request("users.list", {
         limit: 77,
       }),
       props.state.client.request("conversations.history", {
         channel: channelId,
+        limit: 50,
       }),
     ]);
+
+    const cached = await props.state.cacheStore.get("messages:" + channelId);
+    if (cached) {
+      console.log("Cached");
+      setState({
+        history: cached,
+        channelUserList: cached._userList ?? [],
+      });
+      scrollToBottom(true);
+    }
+
+    const [channelUserList, data] = await networkReq;
+
     if (channelUserList?.ok) {
       setState("channelUserList", channelUserList.members);
     }
@@ -107,6 +118,14 @@ export default function Chat(props: Props) {
 
       scrollToBottom(true);
 
+      props.state.cacheStore.set("messages:" + channelId, {
+        ...data,
+        messages: [...data.messages].reverse().slice(50),
+        _userList: state.channelUserList,
+      });
+
+      await props.state.cacheStore.save();
+
       props.state.client.on("message", async (msg) => {
         if (
           msg.channel.id !== channelId ||
@@ -116,7 +135,8 @@ export default function Chat(props: Props) {
           return;
         if (
           msg.user ===
-          props.state.localData.teams[props.state.localData.lastActiveTeamId].user_id
+          props.state.localData.teams[props.state.localData.lastActiveTeamId]
+            .user_id
         ) {
           const alreadyExists =
             state.history.messages.some(
@@ -135,6 +155,12 @@ export default function Chat(props: Props) {
 
         await fetchMissingUsers(state.channelUserList, [msg]);
         setState("history", "messages", (prev: any[]) => [...prev, msg]);
+        props.state.cacheStore.set("messages:" + channelId, {
+          ...state.history,
+          messages: state.history.messages.slice(-50),
+          _userList: state.channelUserList,
+        });
+        await props.state.cacheStore.save();
         scrollToBottom();
       });
     }
@@ -204,7 +230,7 @@ export default function Chat(props: Props) {
   };
 
   onMount(async () => {
-    const channel = props.state.currentChannel
+    const channel = props.state.currentChannel;
     if (channel) {
       await getConvHistory(channel);
     }
@@ -222,8 +248,7 @@ export default function Chat(props: Props) {
       >
         <Show
           when={
-            Object.keys(state.history).length > 0 &&
-            state.channelUserList.length > 0
+            Object.keys(state.history).length > 0
           }
         >
           <For each={state.history.messages}>

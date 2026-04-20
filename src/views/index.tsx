@@ -1,5 +1,5 @@
 import { Slack } from "../lib/slacktism";
-import { onMount, createSignal, Show, For, lazy, createMemo } from "solid-js";
+import { onMount, createSignal, Show, For, lazy, createMemo, batch } from "solid-js";
 import { makeObjectStorage, makePersisted } from "@solid-primitives/storage";
 import { useNavigate } from "@solidjs/router";
 import { createStore } from "solid-js/store";
@@ -121,27 +121,31 @@ export default function Index() {
   });
 
   const navigateToChannel = async (channelId: string) => {
-    setState("currentChannel", channelId);
-    setState("channels", (ch) => ch.id === channelId, {
-      mention_count: 0,
-      has_unreads: false,
-    });
-    setPersist((prev) => ({
-      ...prev,
-      lastActiveChannel: channelId,
-    }));
-    saveSidebarCache({
-      teamId: state.localData.lastActiveTeamId,
-      channels: state.channels,
-      sections: state.sections,
-      expandedSections: state.expandedSections,
-      lastChannel: channelId,
-      updatedAt: Date.now(),
-    });
-    await state.client.request("conversations.mark", {
-      channel: channelId,
-      ts: (Date.now() / 1000).toString(),
-    });
+      setState(prev => ({
+        currentChannel: channelId,
+        channels: prev.channels.map(ch =>
+          ch.id === channelId
+            ? { ...ch, mention_count: 0, has_unreads: false }
+            : ch
+        ),
+      }));
+
+      setPersist((prev) => ({
+        ...prev,
+        lastActiveChannel: channelId,
+      }));
+      saveSidebarCache({
+        teamId: state.localData.lastActiveTeamId,
+        channels: state.channels,
+        sections: state.sections,
+        expandedSections: state.expandedSections,
+        lastChannel: channelId,
+        updatedAt: Date.now(),
+      });
+      state.client.request("conversations.mark", {
+        channel: channelId,
+        ts: (Date.now() / 1000).toString(),
+      });
   };
 
   const [state, setState] = createStore<StateType>({
@@ -225,6 +229,12 @@ export default function Index() {
       token: { cookie: token(), token: workspace.token },
     });
     await app.start();
+    setState("client", app);
+    const currentChannel =
+      persist.lastActiveChannel ??
+      state.currentChannel ??
+      "";
+    navigateToChannel(currentChannel)
 
     const [userBoot, sectionsRaw] = await Promise.all([
       app.request("client.userBoot", {}),
@@ -240,24 +250,20 @@ export default function Index() {
     const sortedChannels = [...(userBoot.channels as EnrichedChannel[])].sort(
       (a, b) => (priorities[b.id] ?? 0) - (priorities[a.id] ?? 0),
     );
-    const currentChannel =
-      persist.lastActiveChannel ??
-      state.currentChannel ??
-      sortedChannels[0]?.id ??
-      "";
-
-    setState({
-      channels: sortedChannels,
-      client: app,
-      oldClient: client,
-      currentChannel,
-      isBooting: false,
-    });
 
     const expandedSections = buildExpandedSections(
       sectionsRaw.channel_sections,
     );
-    setState({ sections: sectionsRaw.channel_sections, expandedSections });
+
+    setState({
+      channels: sortedChannels,
+      oldClient: client,
+      // currentChannel,
+      isBooting: false,
+      sections: sectionsRaw.channel_sections,
+      expandedSections,
+    });
+
 
     const sidebarSnapshot = () => ({
       teamId: lastActiveTeamId,
@@ -508,9 +514,7 @@ export default function Index() {
       <div class="sm:ml-80 h-full flex flex-col">
         <div class="overflow-hidden flex flex-col flex-1 rounded-base">
           <Show when={state.client && state.oldClient! && state.currentChannel}>
-            <For each={[state.currentChannel]}>
-              {(_) => <Chat state={state} setState={setState} />}
-            </For>
+            <Chat state={state} setState={setState} />
           </Show>
         </div>
       </div>
