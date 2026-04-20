@@ -6,7 +6,6 @@ import { parseSlackMessageJSX } from "../lib/messageParser";
 import { GenericMessageEvent } from "@slack/web-api";
 import MingcuteEmojiLine from "~icons/mingcute/emoji-line";
 import EmojiList from "./emojiList";
-import { ClientUserBootResponse } from "slack-undoc-client";
 import { StateType } from "../views";
 
 type Props = {
