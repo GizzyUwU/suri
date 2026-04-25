@@ -4,7 +4,6 @@ import type { RichTextBlock } from "@slack/web-api";
 import type * as SlackT from "./slack";
 import EventEmitter from "eventemitter3";
 import { SlackEvent, } from '@slack/types';
-type SlackEventType = SlackEvent['type'];
 
 // Listen for users who join a channel that the bot user is a member of
 // See: /reference/events/member_joined_channel

@@ -142,7 +142,7 @@ export default function Index() {
         lastChannel: channelId,
         updatedAt: Date.now(),
       });
-      state.client.request("conversations.mark", {
+      void state.client.request("conversations.mark", {
         channel: channelId,
         ts: (Date.now() / 1000).toString(),
       });
@@ -161,6 +161,10 @@ export default function Index() {
     messageCache: {},
     isBooting: true,
   });
+  
+  const channelMap = createMemo(() =>
+    new Map(state.channels.map(c => [c.id, c]))
+  );
 
   const loadSidebarCache = async (
     teamId: string,
@@ -183,11 +187,11 @@ export default function Index() {
     } catch {}
   };
 
-  const sectionsWithChannels = createMemo(() => {
-    if (!state.channels.length || !state.sections.length) return [];
-    const orderedSections = orderSections(state.sections);
-    return buildSectionChannelList(orderedSections, state.channels);
-  });
+  const orderedSections = createMemo(() => orderSections(state.sections));
+  
+  const sectionsWithChannels = createMemo(() =>
+    buildSectionChannelList(orderedSections(), state.channels)
+  );
 
   onMount(async () => {
     if (!token() || !localConfig()) return nav("/");
@@ -475,8 +479,7 @@ export default function Index() {
                         <ul>
                           <For each={section.channel_ids_page.channel_ids}>
                             {(channelId) => {
-                              const channel = () =>
-                                state.channels.find((c) => c.id === channelId);
+                              const channel = () => channelMap().get(channelId);
                               return (
                                 <Show when={channel()}>
                                   <li
@@ -492,7 +495,7 @@ export default function Index() {
                                     }}
                                     onClick={async (e) => {
                                       e.preventDefault();
-                                      await navigateToChannel(channel().id);
+                                      navigateToChannel(channel().id);
                                     }}
                                   >
                                     <span>{channel().name}</span>
