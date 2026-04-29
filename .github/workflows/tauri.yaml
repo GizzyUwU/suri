@@ -63,6 +63,17 @@ jobs:
 
       - uses: rui314/setup-mold@v1
 
+      - name: Cache Bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lockb') }}
+          restore-keys: |
+            bun-${{ runner.os }}-
+
+
       - name: install frontend dependencies
         run: bun install # change this to npm, pnpm or bun depending on which one you use.
 
@@ -72,7 +83,19 @@ jobs:
           path: |
             node_modules/.vite
             node_modules/.cache/esbuild
-            key: vite-local-${{ runner.os }}-${{ hashFiles('**/vite.config.*') }}
+          key: vite-${{ runner.os }}-${{ hashFiles('bun.lockb', '**/vite.config.*') }}
+          restore-keys: |
+            vite-${{ runner.os }}-
+
+      # Cache TypeScript incremental builds properly
+      - name: Cache TypeScript Build Info
+        uses: actions/cache@v4
+        with:
+          path: |
+            **/*.tsbuildinfo
+          key: ts-${{ runner.os }}-${{ hashFiles('bun.lockb', '**/tsconfig*.json', 'src/**/*.ts', 'src/**/*.tsx') }}
+          restore-keys: |
+            ts-${{ runner.os }}-
 
     # Cache TypeScript build info
       - name: Cache TypeScript Build Info
