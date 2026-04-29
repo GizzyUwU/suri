@@ -15,6 +15,8 @@ import EmojiList from "./emojiList";
 import { StateType } from "../views";
 import { createMemo } from "solid-js";
 import { MessageInstance } from "slack.ts";
+import { createVirtualizer } from "@tanstack/solid-virtual";
+import { VList, type VirtualizerHandle } from "virtua/solid";
 
 type Props = {
   state: Store<StateType>;
@@ -31,21 +33,33 @@ type Props = {
 };
 
 export default function Chat(props: Props) {
-  let messagesList: HTMLUListElement | undefined;
+  let messagesList: HTMLDivElement | undefined;
+  let vlistRef: VirtualizerHandle | undefined;
   let usersListPromise: Promise<any> | null = null;
   const [messages, setMessages] = createSignal<any[]>([]);
   const pendingMessages = new Set<string>();
+  let historyPopulated = false;
   const [state, setState] = createStore<{
     channelUserList: Record<string, any>[];
     emojiList: {
       show: boolean;
       preventionEnabled: boolean;
     };
+    history: {
+      hasMore: boolean;
+      next_cursor: string;
+      loadingMore: boolean;
+    };
   }>({
     channelUserList: [],
     emojiList: {
       show: false,
       preventionEnabled: false,
+    },
+    history: {
+      hasMore: false,
+      next_cursor: "",
+      loadingMore: false,
     },
   });
 
@@ -60,22 +74,20 @@ export default function Chat(props: Props) {
     queue.push(msg);
     if (scheduled) return;
     scheduled = true;
-    requestAnimationFrame(() => {
-      scheduled = false;
+    scheduled = false;
 
-      setMessages((prev) => {
-        const existing = new Set(prev.map((m) => m.ts ?? m.text));
+    setMessages((prev) => {
+      const existing = new Set(prev.map((m) => m.ts ?? m.text));
 
-        const filtered = queue.filter((m) => {
-          const k = m.ts ?? m.client_msg_id ?? m.text;
-          if (existing.has(k)) return false;
-          existing.add(k);
-          return true;
-        });
-
-        queue = [];
-        return [...prev, ...filtered];
+      const filtered = queue.filter((m) => {
+        const k = m.ts ?? m.client_msg_id ?? m.text;
+        if (existing.has(k)) return false;
+        existing.add(k);
+        return true;
       });
+
+      queue = [];
+      return [...prev, ...filtered];
     });
   };
 
@@ -85,16 +97,12 @@ export default function Chat(props: Props) {
 
   const scrollToBottom = (force?: boolean) => {
     requestAnimationFrame(() => {
-      if (!messagesList) return;
-
-      const threshold = 300;
+      if (!vlistRef) return;
+      const threshold = 400;
       const distanceFromBottom =
-        messagesList.scrollHeight -
-        messagesList.scrollTop -
-        messagesList.clientHeight;
-
+        vlistRef.scrollSize - vlistRef.scrollOffset - vlistRef.viewportSize;
       if (distanceFromBottom < threshold || force) {
-        messagesList.scrollTop = messagesList.scrollHeight;
+        vlistRef.scrollTo(vlistRef.scrollSize)
       }
     });
   };
@@ -118,34 +126,88 @@ export default function Chat(props: Props) {
 
   const getConvHistory = async (channelId: string) => {
     if (!channelId) return;
-
+    historyPopulated = false;
     const cachedMessages = props.state.messageCache[channelId] ?? [];
     queue = [];
     scheduled = false;
-    setMessages([...cachedMessages]);
-    scrollToBottom(true);
+    if (cachedMessages.length > 0) {
+      setMessages([...cachedMessages]);
+      setState("history", (prev) => ({
+        ...prev,
+      }));
+      scrollToBottom(true);
+    }
 
     const [channelUserList, data] = await Promise.all([
       ensureUsersList(),
       props.state.client.request("conversations.history", {
         channel: channelId,
+        limit: 50,
       }),
     ]);
-
     if (channelUserList?.ok) {
       setState("channelUserList", channelUserList.members);
     }
 
     if (data?.ok) {
       const reversedMessages = [...(data.messages ?? [])].reverse();
-
       queue = [];
       scheduled = false;
-      setMessages(reversedMessages);
-      props.setState("messageCache", channelId, reversedMessages as any);
-
+      setMessages([...reversedMessages]);
+      setState("history", {
+        hasMore: data.has_more,
+        next_cursor: data.response_metadata.next_cursor,
+      });
       scrollToBottom(true);
+
+      props.setState("messageCache", channelId, reversedMessages as any);
       fetchMissingUsers(channelUserList.members ?? [], reversedMessages);
+    }
+  };
+
+  const loadMore = async () => {
+    if (
+      !state.history.hasMore ||
+      state.history.loadingMore ||
+      !state.history.next_cursor ||
+      !historyPopulated
+    )
+      return;
+
+    setState("history", "loadingMore", true);
+
+    // const anchorIndex = rowVirtualizer.getVirtualItems()[0]?.index ?? 0;
+    const data = await props.state.client.request("conversations.history", {
+      channel: props.state.currentChannel,
+      cursor: state.history.next_cursor,
+      limit: 50,
+    });
+
+    if (data?.ok) {
+      const older = [...(data.messages ?? [])].reverse();
+
+      setMessages((prev) => [...older, ...prev]);
+
+      setState("history", {
+        hasMore: data.has_more,
+        next_cursor: data.response_metadata?.next_cursor,
+        loadingMore: false,
+      });
+      scrollToBottom(true);
+
+      // requestAnimationFrame(() => {
+      //   //   const newScrollHeight = el.scrollHeight;
+
+      //   //   const diff = newScrollHeight - prevScrollHeight;
+
+      //   // //   el.scrollTop = prevScrollTop + diff;
+      //   // rowVirtualizer.scrollToIndex(anchorIndex + older.length, {
+      //   //   align: "start",
+      //   //   behavior: "auto", // "auto" = no smooth scroll, no perceived jump
+      //   // });
+      // });
+    } else {
+      setState("history", "loadingMore", false);
     }
   };
 
@@ -273,12 +335,34 @@ export default function Chat(props: Props) {
 
   return (
     <div class="relative flex flex-col flex-1 overflow-hidden">
-      <ul
-        ref={(el) => (messagesList = el)}
-        class="overflow-y-auto overflow-x-hidden flex-1 space-y-2 p-4"
+      <div
+        // ref={(el) => {
+        //   if (!el) return;
+        //   messagesList = el;
+        //   const onScroll = () => {
+        //     if (el.scrollTop < 10) {
+        //       loadMore();
+        //     }
+        //   };
+
+        //   el.addEventListener("scroll", onScroll);
+        //   onCleanup(() => el.removeEventListener("scroll", onScroll));
+        // }}
+        class="overflow-y-auto min-h-0 overflow-x-hidden flex-1"
       >
-        <Show when={Object.keys(messages()).length > 0}>
-          <For each={messages()}>
+        <ul
+          // style={{
+          //   height: `${rowVirtualizer.getTotalSize()}px`,
+          //   position: "relative",
+          // }}
+          class="overflow-y-auto overflow-x-hidden p-4"
+        >
+          <VList
+            ref={(el) => (vlistRef = el)}
+            data={messages()}
+            style={{ height: "100vh" }}
+            shift={historyPopulated}
+          >
             {(message, index) => {
               const prev = () => messages()[index() - 1];
               const sameUserAsPrev = () => {
@@ -325,9 +409,9 @@ export default function Chat(props: Props) {
                 </li>
               );
             }}
-          </For>
-        </Show>
-      </ul>
+          </VList>
+        </ul>
+      </div>
       <div class="absolute bottom-16 left-4 z-10" style="pointer-events: auto;">
         <Show when={state.emojiList.show}>
           <EmojiList
