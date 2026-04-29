@@ -66,6 +66,21 @@ jobs:
       - name: install frontend dependencies
         run: bun install # change this to npm, pnpm or bun depending on which one you use.
 
+      - name: Cache Vite Dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules/.vite
+            node_modules/.cache/esbuild
+            key: vite-local-${{ runner.os }}-${{ hashFiles('**/vite.config.*') }}
+
+    # Cache TypeScript build info
+      - name: Cache TypeScript Build Info
+        uses: actions/cache@v4
+        with:
+          path: "**/*.tsbuildinfo"
+          key: ts-build-${{ runner.os }}-${{ hashFiles('**/tsconfig*.json') }}
+
       - uses: tauri-apps/tauri-action@v0.6.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
