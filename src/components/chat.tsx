@@ -36,6 +36,8 @@ export default function Chat(props: Props) {
   let messagesList: HTMLDivElement | undefined;
   let vlistRef: VirtualizerHandle | undefined;
   let usersListPromise: Promise<any> | null = null;
+  const [listHeight, setListHeight] = createSignal(500);
+  let listContainer: HTMLDivElement | undefined;
   const [messages, setMessages] = createSignal<any[]>([]);
   const pendingMessages = new Set<string>();
   let historyPopulated = false;
@@ -102,7 +104,10 @@ export default function Chat(props: Props) {
       const distanceFromBottom =
         vlistRef.scrollSize - vlistRef.scrollOffset - vlistRef.viewportSize;
       if (distanceFromBottom < threshold || force) {
-        vlistRef.scrollTo(vlistRef.scrollSize)
+        vlistRef.scrollToIndex(messages().length, {
+          align: "end",
+          smooth: true
+        })
       }
     });
   };
@@ -295,6 +300,12 @@ export default function Chat(props: Props) {
   };
 
   onMount(() => {
+    if (!listContainer) return;
+    const ro = new ResizeObserver(([entry]) => {
+      setListHeight(entry.contentRect.height);
+    });
+    ro.observe(listContainer);
+    onCleanup(() => ro.disconnect());
     props.state.client.on("message:normal", async (msg) => {
       const channelId = props.state.currentChannel;
       if (msg.channel.id !== channelId) return;
@@ -334,8 +345,10 @@ export default function Chat(props: Props) {
   );
 
   return (
-    <div class="relative flex flex-col flex-1 overflow-hidden">
+    <div class="relative flex flex-col flex-1 overflow-hidden pr-0">
       <div
+        ref={(el) => (listContainer = el)}
+
         // ref={(el) => {
         //   if (!el) return;
         //   messagesList = el;
@@ -348,20 +361,23 @@ export default function Chat(props: Props) {
         //   el.addEventListener("scroll", onScroll);
         //   onCleanup(() => el.removeEventListener("scroll", onScroll));
         // }}
-        class="overflow-y-auto min-h-0 overflow-x-hidden flex-1"
+        class="overflow-hidden min-h-0 flex-1 h-full pr-0"
       >
         <ul
           // style={{
           //   height: `${rowVirtualizer.getTotalSize()}px`,
           //   position: "relative",
           // }}
-          class="overflow-y-auto overflow-x-hidden p-4"
+          class="overflow-hidden pl-4 pb-4 pr-0 w-full"
         >
           <VList
             ref={(el) => (vlistRef = el)}
             data={messages()}
-            style={{ height: "100vh" }}
+            style={{ height: `${listHeight() - 10}px` }}  // ← exact px from container
             shift={historyPopulated}
+            // onRangeChange={(start) => {
+            //   if (start === 0) loadMore();
+            // }}
           >
             {(message, index) => {
               const prev = () => messages()[index() - 1];
