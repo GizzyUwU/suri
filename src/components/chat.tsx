@@ -106,8 +106,8 @@ export default function Chat(props: Props) {
       if (distanceFromBottom < threshold || force) {
         vlistRef.scrollToIndex(messages().length, {
           align: "end",
-          smooth: true
-        })
+          smooth: true,
+        });
       }
     });
   };
@@ -163,6 +163,7 @@ export default function Chat(props: Props) {
         hasMore: data.has_more,
         next_cursor: data.response_metadata.next_cursor,
       });
+      historyPopulated = true;
       scrollToBottom(true);
 
       props.setState("messageCache", channelId, reversedMessages as any);
@@ -181,7 +182,6 @@ export default function Chat(props: Props) {
 
     setState("history", "loadingMore", true);
 
-    // const anchorIndex = rowVirtualizer.getVirtualItems()[0]?.index ?? 0;
     const data = await props.state.client.request("conversations.history", {
       channel: props.state.currentChannel,
       cursor: state.history.next_cursor,
@@ -190,27 +190,18 @@ export default function Chat(props: Props) {
 
     if (data?.ok) {
       const older = [...(data.messages ?? [])].reverse();
-
+  
       setMessages((prev) => [...older, ...prev]);
-
+  
       setState("history", {
         hasMore: data.has_more,
         next_cursor: data.response_metadata?.next_cursor,
-        loadingMore: false,
       });
-      scrollToBottom(true);
-
-      // requestAnimationFrame(() => {
-      //   //   const newScrollHeight = el.scrollHeight;
-
-      //   //   const diff = newScrollHeight - prevScrollHeight;
-
-      //   // //   el.scrollTop = prevScrollTop + diff;
-      //   // rowVirtualizer.scrollToIndex(anchorIndex + older.length, {
-      //   //   align: "start",
-      //   //   behavior: "auto", // "auto" = no smooth scroll, no perceived jump
-      //   // });
-      // });
+  
+      requestAnimationFrame(() => {
+        vlistRef?.scrollToIndex(older.length, { align: "start" });
+        setState("history", "loadingMore", false)
+      });
     } else {
       setState("history", "loadingMore", false);
     }
@@ -348,7 +339,6 @@ export default function Chat(props: Props) {
     <div class="relative flex flex-col flex-1 overflow-hidden pr-0">
       <div
         ref={(el) => (listContainer = el)}
-
         // ref={(el) => {
         //   if (!el) return;
         //   messagesList = el;
@@ -373,11 +363,12 @@ export default function Chat(props: Props) {
           <VList
             ref={(el) => (vlistRef = el)}
             data={messages()}
-            style={{ height: `${listHeight() - 10}px` }}  // ← exact px from container
+            style={{ height: `${listHeight() - 10}px` }}
             shift={historyPopulated}
-            // onRangeChange={(start) => {
-            //   if (start === 0) loadMore();
-            // }}
+            onScroll={(offset) => {
+              if (offset < 30 && historyPopulated && !state.history.loadingMore)
+                loadMore();
+            }}
           >
             {(message, index) => {
               const prev = () => messages()[index() - 1];
