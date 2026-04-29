@@ -363,7 +363,6 @@ export function parseSlackMessageJSX(
             alt={file.name}
             ref={(el) => {
               if (!el || !client) return;
-              // Hide the parent container until image is ready
               const container = el.parentElement as HTMLElement;
               container.style.display = "none";
               
@@ -377,7 +376,7 @@ export function parseSlackMessageJSX(
                 })
                 .catch((err) => {
                   console.error("Slack image failed", err);
-                  container.style.display = ""; // show anyway on error
+                  container.style.display = "";
                 });
             }}
             loading="lazy"
@@ -387,15 +386,7 @@ export function parseSlackMessageJSX(
               "object-fit": "contain",
               display: "block",
             }}
-            // ref={(el) => {
-            //   if (!el || !client) return;
-            //   client
-            //     .getImageDataFromSlack(bestThumb.url)
-            //     .then((blobUrl) => {
-            //       el.src = blobUrl;
-            //     })
-            //     .catch((err) => console.error("Slack image failed", err));
-            // }}
+        
           />
         </div>,
       );

@@ -1,7 +1,6 @@
 import {
   onCleanup,
   onMount,
-  For,
   Show,
   createEffect,
   on,
@@ -14,26 +13,14 @@ import MingcuteEmojiLine from "~icons/mingcute/emoji-line";
 import EmojiList from "./emojiList";
 import { StateType } from "../views";
 import { createMemo } from "solid-js";
-import { MessageInstance } from "slack.ts";
-import { createVirtualizer } from "@tanstack/solid-virtual";
 import { VList, type VirtualizerHandle } from "virtua/solid";
 
 type Props = {
   state: Store<StateType>;
   setState: SetStoreFunction<StateType>;
-  // client: App<"rtm">;
-  // oldClient: Slack;
-  // currentChannel: () => string;
-  // userBoot:
-  //   | ({
-  //       ok: true;
-  //     } & ClientUserBootResponse)
-  //   | null;
-  // localData: Record<string, any>;
 };
 
 export default function Chat(props: Props) {
-  let messagesList: HTMLDivElement | undefined;
   let vlistRef: VirtualizerHandle | undefined;
   let usersListPromise: Promise<any> | null = null;
   const [listHeight, setListHeight] = createSignal(500);
@@ -339,25 +326,9 @@ export default function Chat(props: Props) {
     <div class="relative flex flex-col flex-1 overflow-hidden pr-0">
       <div
         ref={(el) => (listContainer = el)}
-        // ref={(el) => {
-        //   if (!el) return;
-        //   messagesList = el;
-        //   const onScroll = () => {
-        //     if (el.scrollTop < 10) {
-        //       loadMore();
-        //     }
-        //   };
-
-        //   el.addEventListener("scroll", onScroll);
-        //   onCleanup(() => el.removeEventListener("scroll", onScroll));
-        // }}
         class="overflow-hidden min-h-0 flex-1 h-full pr-0"
       >
         <ul
-          // style={{
-          //   height: `${rowVirtualizer.getTotalSize()}px`,
-          //   position: "relative",
-          // }}
           class="overflow-hidden pl-4 pb-4 pr-0 w-full"
         >
           <VList
@@ -433,7 +404,7 @@ export default function Chat(props: Props) {
         </Show>
       </div>
       <div class="shrink-0 border-t border-default">
-        <div class="ml-2 block">a</div>
+        {/*<div class="ml-2 block">a</div>*/}
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -467,7 +438,7 @@ export default function Chat(props: Props) {
             }}
           />
         </form>
-        <div class="ml-2 mb-2 block hover:cursor-pointer">
+        {/*<div class="ml-2 mb-2 block hover:cursor-pointer">
           <MingcuteEmojiLine
             onClick={() => {
               if (state.emojiList.preventionEnabled) return;
@@ -486,7 +457,7 @@ export default function Chat(props: Props) {
               );
             }}
           />
-        </div>
+        </div>*/}
       </div>
     </div>
   );

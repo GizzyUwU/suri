@@ -1,6 +1,5 @@
 import { createStore, SetStoreFunction, Store } from "solid-js/store";
 import { onCleanup } from "solid-js";
-import { Slack } from "../lib/slacktism";
 import { StateType } from "../views";
 
 type Props = {

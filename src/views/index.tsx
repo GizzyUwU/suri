@@ -1,5 +1,5 @@
 import { Slack } from "../lib/slacktism";
-import { onMount, createSignal, Show, For, lazy, createMemo, batch } from "solid-js";
+import { onMount, createSignal, Show, For, createMemo } from "solid-js";
 import { makeObjectStorage, makePersisted } from "@solid-primitives/storage";
 import { useNavigate } from "@solidjs/router";
 import { createStore } from "solid-js/store";
@@ -9,15 +9,14 @@ import "../css/index.css";
 import { SafeStore } from "../lib/safeStore";
 import { getPassword } from "tauri-plugin-keyring-api";
 import { tauriStorage } from "@solid-primitives/storage/tauri";
-import { App, Message, MessageInstance } from "slack.ts";
-import { load, Store } from "@tauri-apps/plugin-store";
+import { App } from "slack.ts";
 
 import type {
   ClientCountsResponse,
   ClientUserBootResponse,
 } from "slack-undoc-client";
 import backgroundThings from "../lib/background";
-import { ConversationsHistoryResponse, KnownBlock } from "@slack/web-api";
+import { ConversationsHistoryResponse } from "@slack/web-api";
 
 function orderSections(sections: any) {
   const map = new Map();
@@ -99,7 +98,7 @@ export type StateType = {
 
 export default function Index() {
   const nav = useNavigate();
-  const [safeData, setSafeData] = createSignal<SafeStore | null>(null);
+  const [_, setSafeData] = createSignal<SafeStore | null>(null);
   const [persist, setPersist] = makePersisted(
     createStore<PersistState>({
       lastActiveChannel: undefined,
@@ -121,31 +120,31 @@ export default function Index() {
   });
 
   const navigateToChannel = async (channelId: string) => {
-      setState(prev => ({
-        currentChannel: channelId,
-        channels: prev.channels.map(ch =>
-          ch.id === channelId
-            ? { ...ch, mention_count: 0, has_unreads: false }
-            : ch
-        ),
-      }));
+    setState((prev) => ({
+      currentChannel: channelId,
+      channels: prev.channels.map((ch) =>
+        ch.id === channelId
+          ? { ...ch, mention_count: 0, has_unreads: false }
+          : ch,
+      ),
+    }));
 
-      setPersist((prev) => ({
-        ...prev,
-        lastActiveChannel: channelId,
-      }));
-      saveSidebarCache({
-        teamId: state.localData.lastActiveTeamId,
-        channels: state.channels,
-        sections: state.sections,
-        expandedSections: state.expandedSections,
-        lastChannel: channelId,
-        updatedAt: Date.now(),
-      });
-      void state.client.request("conversations.mark", {
-        channel: channelId,
-        ts: (Date.now() / 1000).toString(),
-      });
+    setPersist((prev) => ({
+      ...prev,
+      lastActiveChannel: channelId,
+    }));
+    saveSidebarCache({
+      teamId: state.localData.lastActiveTeamId,
+      channels: state.channels,
+      sections: state.sections,
+      expandedSections: state.expandedSections,
+      lastChannel: channelId,
+      updatedAt: Date.now(),
+    });
+    void state.client.request("conversations.mark", {
+      channel: channelId,
+      ts: (Date.now() / 1000).toString(),
+    });
   };
 
   const [state, setState] = createStore<StateType>({
@@ -161,9 +160,9 @@ export default function Index() {
     messageCache: {},
     isBooting: true,
   });
-  
-  const channelMap = createMemo(() =>
-    new Map(state.channels.map(c => [c.id, c]))
+
+  const channelMap = createMemo(
+    () => new Map(state.channels.map((c) => [c.id, c])),
   );
 
   const loadSidebarCache = async (
@@ -188,9 +187,9 @@ export default function Index() {
   };
 
   const orderedSections = createMemo(() => orderSections(state.sections));
-  
+
   const sectionsWithChannels = createMemo(() =>
-    buildSectionChannelList(orderedSections(), state.channels)
+    buildSectionChannelList(orderedSections(), state.channels),
   );
 
   onMount(async () => {
@@ -235,10 +234,8 @@ export default function Index() {
     await app.start();
     setState("client", app);
     const currentChannel =
-      persist.lastActiveChannel ??
-      state.currentChannel ??
-      "";
-    navigateToChannel(currentChannel)
+      persist.lastActiveChannel ?? state.currentChannel ?? "";
+    navigateToChannel(currentChannel);
 
     const [userBoot, sectionsRaw] = await Promise.all([
       app.request("client.userBoot", {}),
@@ -267,7 +264,6 @@ export default function Index() {
       sections: sectionsRaw.channel_sections,
       expandedSections,
     });
-
 
     const sidebarSnapshot = () => ({
       teamId: lastActiveTeamId,
@@ -310,131 +306,6 @@ export default function Index() {
       {},
     );
   }
-
-  // onMount(async () => {
-  //   if (!token() || !localConfig()) return nav("/");
-  //   const user: {
-  //     uid: number;
-  //     name: string;
-  //     primary_group: number;
-  //   } = await window.__TAURI__.core.invoke("sys_user");
-  //   const key = (await getPassword("suri", user.name)) ?? "";
-  //   const store = await SafeStore.use(key, user.name);
-  //   setState(
-  //     "cacheStore",
-  //     await SafeStore.use(key, user.name, "cache-")
-  //   );
-  //   setSafeData(store);
-  //   const data = JSON.parse(localConfig());
-  //   setState("localData", data);
-
-  //   const workspace = data.teams[data.lastActiveTeamId];
-  //   const cachedSidebar = await loadSidebarCache(data.lastActiveTeamId);
-
-  //   if (cachedSidebar) {
-  //     setState({
-  //       channels: cachedSidebar.channels,
-  //       sections: cachedSidebar.sections,
-  //       expandedSections: cachedSidebar.expandedSections,
-  //       currentChannel:
-  //         persist.lastActiveChannel ?? cachedSidebar.lastChannel ?? "",
-  //       isBooting: false,
-  //     });
-  //   }
-
-  //   let url = workspace.url.trim();
-  //   if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
-  //   if (url.endsWith("/")) url = url.slice(0, -1);
-
-  //   const client = new Slack(url, workspace.token, token());
-  //   const app = new App({
-  //     receiver: { type: "rtm" },
-  //     token: { cookie: token(), token: workspace.token },
-  //   });
-
-  //   await app.start();
-  //   const userBootPromise = app.request("client.userBoot", {});
-  //   const sectionsPromise = app.request("users.channelSections.list", {});
-  //   const countsPromise = app.request("client.counts", {});
-
-  //   setState("userBoot", await userBootPromise);
-  //   backgroundThings({ app, state, setState, userBoot: state.userBoot! });
-
-  //   const rawChannels = state.userBoot!.channels;
-  //   const priorities: Record<string, number> =
-  //     (state.userBoot!.channels_priority as
-  //       | Record<string, number>
-  //       | undefined) || {};
-
-  //   const sortedChannels = [...rawChannels].sort(
-  //     (a, b) => (priorities[b.id] ?? 0) - (priorities[a.id] ?? 0),
-  //   );
-
-  //   const initialChannel =
-  //     persist.lastActiveChannel ??
-  //     state.currentChannel ??
-  //     sortedChannels[0]?.id ??
-  //     "";
-
-  //   setState({
-  //     channels: sortedChannels as unknown as EnrichedChannel[],
-  //     client: app,
-  //     oldClient: client,
-  //     currentChannel: initialChannel,
-  //     isBooting: false,
-  //   });
-
-  //   const sectionsRaw = await sectionsPromise;
-  //   const orderedSections = orderSections(sectionsRaw.channel_sections);
-  //   setState({
-  //     sections: sectionsRaw.channel_sections,
-  //     expandedSections: orderedSections.reduce(
-  //       (acc: Record<string, boolean>, section: any) => {
-  //         acc[section.channel_section_id] = true;
-  //         return acc;
-  //       },
-  //       {} as Record<string, boolean>,
-  //     ),
-  //   });
-
-  //   saveSidebarCache({
-  //     teamId: data.lastActiveTeamId,
-  //     channels: sortedChannels as unknown as EnrichedChannel[],
-  //     sections: sectionsRaw.channel_sections,
-  //     expandedSections: orderedSections.reduce(
-  //       (acc: Record<string, boolean>, section: any) => {
-  //         acc[section.channel_section_id] = true;
-  //         return acc;
-  //       },
-  //       {} as Record<string, boolean>,
-  //     ),
-  //     lastChannel: initialChannel,
-  //     updatedAt: Date.now(),
-  //   });
-
-  //   countsPromise.then((clientCounts) => {
-  //     const countsMap = new Map(
-  //       clientCounts.channels.map((c: any) => [c.id, c]),
-  //     );
-  //     setState(
-  //       "channels",
-  //       (channels) =>
-  //         channels.map((channel) => ({
-  //           ...channel,
-  //           ...(countsMap.get(channel.id) || {}),
-  //         })) as EnrichedChannel[],
-  //     );
-
-  //     saveSidebarCache({
-  //       teamId: data.lastActiveTeamId,
-  //       channels: state.channels,
-  //       sections: state.sections,
-  //       expandedSections: state.expandedSections,
-  //       lastChannel: state.currentChannel,
-  //       updatedAt: Date.now(),
-  //     });
-  //   });
-  // });
 
   return (
     <div class="w-screen h-screen bg-ctp-base text-white">
