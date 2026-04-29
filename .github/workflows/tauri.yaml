@@ -42,6 +42,10 @@ jobs:
         with:
           packages: libwebkit2gtk-4.1 libayatana-appindicator3-dev librsvg2-dev patchelf libgtk-3-dev pkg-config libglib2.0-dev libpango1.0-dev libcairo2-dev libgdk-pixbuf2.0-dev libatk1.0-dev libharfbuzz-dev pkg-config xdg-utils
 
+      - name: Install jq (macOS)
+        if: startsWith(matrix.platform, 'macos')
+        run: brew install jq
+
       - uses: oven-sh/setup-bun@v2
 
       - name: install Rust stable
@@ -93,13 +97,17 @@ jobs:
         with:
           path: "**/*.tsbuildinfo"
           key: ts-build-${{ runner.os }}-${{ hashFiles('**/tsconfig*.json') }}
+          
+      - name: Get version from package.json
+        id: package_version
+        run: echo "VERSION=$(jq -r .version package.json)" >> $GITHUB_ENV
 
       - uses: tauri-apps/tauri-action@v0.6.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: app-v__VERSION__ # the action automatically replaces \_\_VERSION\_\_ with the app version.
-          releaseName: 'App v__VERSION__'
+          tagName: app-v${{ env.VERSION }} # the action automatically replaces \_\_VERSION\_\_ with the app version.
+          releaseName: 'App v${{ env.VERSION }}'
           releaseBody: 'See the assets to download this version and install.'
           releaseDraft: true
           prerelease: false
