@@ -1,16 +1,15 @@
 import { Slack } from "../lib/slacktism";
-import { onMount, createSignal, Show, For, createMemo } from "solid-js";
+import { onMount, createSignal, Show, For, createMemo, Suspense, lazy } from "solid-js";
 import { makeObjectStorage, makePersisted } from "@solid-primitives/storage";
 import { useNavigate } from "@solidjs/router";
 import { createStore } from "solid-js/store";
 import type * as SlackT from "../lib/slack";
-import Chat from "../components/chat";
+const Chat = lazy(() => import("../components/chat"));
 import "../css/index.css";
 import { SafeStore } from "../lib/safeStore";
 import { getPassword } from "tauri-plugin-keyring-api";
 import { tauriStorage } from "@solid-primitives/storage/tauri";
 import { App } from "slack.ts";
-
 import type {
   ClientCountsResponse,
   ClientUserBootResponse,
@@ -388,7 +387,9 @@ export default function Index() {
       <div class="sm:ml-80 h-full flex flex-col">
         <div class="overflow-hidden flex flex-col flex-1 rounded-base">
           <Show when={state.client && state.oldClient! && state.currentChannel}>
-            <Chat state={state} setState={setState} />
+            <Suspense fallback={<div class="p-4">Loading chat...</div>}>
+              <Chat state={state} setState={setState} />
+            </Suspense>
           </Show>
         </div>
       </div>

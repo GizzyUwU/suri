@@ -4,10 +4,14 @@ import tailwindcss from "@tailwindcss/vite";
 import Icons from "unplugin-icons/vite";
 import { nodePolyfills } from 'vite-plugin-node-polyfills'
 import path from "path";
+import { visualizer } from 'rollup-plugin-visualizer'
 const host = process.env.TAURI_DEV_HOST;
 
 // https://vite.dev/config/
-export default defineConfig(async () => ({
+export default defineConfig({
+  esbuild: {
+    jsx: 'automatic',
+  },
   plugins: [
     nodePolyfills({
       include: ['crypto', 'stream', 'http', 'util'],
@@ -18,6 +22,10 @@ export default defineConfig(async () => ({
       compiler: "jsx",
       jsx: "preact",
     }),
+    // visualizer({
+    //   filename: 'dist/stats.html',
+    //   open: true,
+    // }),
     {
       name: "tauri-fetch-inject",
       transform(code: string, id: string) {
@@ -41,6 +49,7 @@ export default defineConfig(async () => ({
       'async_hooks': path.resolve(__dirname, './src/polyfills/async.ts'),
     }
   },
+  
   clearScreen: false,
   server: {
     port: 1420,
@@ -59,6 +68,5 @@ export default defineConfig(async () => ({
   },
   build: {
     target: "esnext",
-    polyfillDynamicImport: false,
   },
-}));
+});
