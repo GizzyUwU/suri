@@ -9,7 +9,7 @@ import {
 import { createStore, SetStoreFunction, Store } from "solid-js/store";
 import { parseSlackMessageJSX } from "../lib/messageParser";
 import { GenericMessageEvent } from "@slack/web-api";
-import MingcuteEmojiLine from "~icons/mingcute/emoji-line";
+// import MingcuteEmojiLine from "~icons/mingcute/emoji-line";
 import EmojiList from "./emojiList";
 import { StateType } from "../views";
 import { createMemo } from "solid-js";
