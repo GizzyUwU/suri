@@ -102,6 +102,9 @@ jobs:
         id: package_version
         run: echo "VERSION=$(jq -r .version package.json)" >> $GITHUB_ENV
 
+      - name: Sync versions
+        run: bun scripts/sync.mjs
+
       - uses: tauri-apps/tauri-action@v0.6.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
