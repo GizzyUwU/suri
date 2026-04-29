@@ -24,6 +24,4 @@ if (tauriConf.version !== version) {
   );
 
   console.log("tauri.conf.json updated.");
-} else {
-  return;
 }
