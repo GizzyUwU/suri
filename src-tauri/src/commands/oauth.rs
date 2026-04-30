@@ -1,8 +1,8 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri_plugin_log::log;
 use url::Url;
-use tauri_plugin_log::{log};
 
 #[tauri::command]
 pub async fn handle_auth(app_handle: tauri::AppHandle, url: String) -> Result<String, String> {
@@ -12,7 +12,23 @@ pub async fn handle_auth(app_handle: tauri::AppHandle, url: String) -> Result<St
     let result_tx = Arc::new(Mutex::new(Some(result_tx)));
     let done = Arc::new(AtomicBool::new(false));
 
-    const SCRAPING_SCRIPT: &str = include_str!("scrape.js");
+    // const SCRAPING_SCRIPT: &str = include_str!("scrape.js");
+    const SCRAPING_SCRIPT: &str = r#"
+(async () => {
+  const poll = setInterval(async () => {
+    const localConfig = localStorage.getItem("localConfig_v2");
+    if (!localConfig) return window.__TAURI__.log.info("Couldn't find local config!")
+    window.__TAURI__.log.info("Found local config!")
+    const invoke = window.__TAURI__.core.invoke;
+    const result = await invoke("handle_config", { data: { localConfig } });
+
+    if (result === "data_received") {
+        clearInterval(poll);
+        return;
+    } else return;
+  }, 100);
+})();
+ "#;
 
     WebviewWindowBuilder::new(&app_handle, "oauth", WebviewUrl::External(parsed_url))
         .initialization_script(SCRAPING_SCRIPT)
