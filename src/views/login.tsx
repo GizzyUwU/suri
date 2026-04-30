@@ -51,6 +51,7 @@ export default function Login() {
   
       const tryNavigate = async () => {
         if (!token() || !localConf()) return;
+        await window.__TAURI__.core.invoke("close_oauth");
         data()?.set("d-token", token());
         data()?.set("lConfig", localConf());
         await data()?.save();

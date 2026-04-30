@@ -28,7 +28,7 @@ pub async fn handle_auth(app_handle: AppHandle, url: String) -> Result<String, S
         .on_navigation({
             let app_handle = app_handle.clone();
             move |nav_url| {
-                if nav_url.host_str().is_some_and(|h| h.ends_with("slack.com")) {
+                if nav_url.host_str().is_some_and(|h| h.ends_with("app.slack.com")) {
                     if let Some(webview) = app_handle.get_webview_window("oauth") {
                         if let Some(w) = app_handle.get_webview_window("oauth") {
                             let _ = w.eval(SCRAPING_SCRIPT);
