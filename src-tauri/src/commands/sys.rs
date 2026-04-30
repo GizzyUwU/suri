@@ -1,5 +1,5 @@
-use users::{get_current_uid, get_user_by_uid};
 use serde::Serialize;
+use users::{get_current_uid, get_user_by_uid};
 
 #[derive(Serialize)]
 pub struct SystemUser {

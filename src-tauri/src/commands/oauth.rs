@@ -1,7 +1,8 @@
-use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc,Mutex};
+use std::sync::{Arc, Mutex};
+use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 use url::Url;
+use tauri_plugin_log::{log};
 
 #[tauri::command]
 pub async fn handle_auth(app_handle: tauri::AppHandle, url: String) -> Result<String, String> {
@@ -25,13 +26,13 @@ pub async fn handle_auth(app_handle: tauri::AppHandle, url: String) -> Result<St
                     return true;
                 }
 
-                if nav_url.host_str().is_some_and(|h| h.ends_with("slack.com"))
-                    && nav_url.path() == "/checkcookie"
-                {
+                log::info!("NAV: {}", nav_url);
+                if nav_url.host_str().is_some_and(|h| h.ends_with("slack.com")) {
                     if let Some(webview) = app_handle.get_webview_window("oauth") {
                         if let Ok(cookies) = webview.cookies() {
                             if let Some(d_cookie) = cookies.iter().find(|c| c.name() == "d") {
                                 let d_token = d_cookie.value().to_string();
+                                log::info!("FOUND THE COOKIE");
 
                                 if let Some(sender) = result_tx.lock().unwrap().take() {
                                     done.store(true, Ordering::SeqCst);

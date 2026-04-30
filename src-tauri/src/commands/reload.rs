@@ -16,8 +16,8 @@ pub async fn reload_window(app: AppHandle) {
     // // };
 
     // if let Some(window) = app.get_webview_window("main") {
-         // let _ = 
-        app.restart();
+    // let _ =
+    app.restart();
     // }
 
     // // Give GTK's main loop time to process the destroy event fully

@@ -1,8 +1,8 @@
 // use std::sync::atomic::{AtomicBool, Ordering};
 // use std::sync::Arc;
 // use tauri::RunEvent;
-mod gpu;
 mod commands;
+mod gpu;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -13,6 +13,11 @@ pub fn run() {
     // let block_exit_clone = block_exit.clone();
 
     tauri::Builder::default()
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .level(tauri_plugin_log::log::LevelFilter::Info)
+                .build(),
+        )
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_websocket::init())
         .plugin(tauri_plugin_http::init())
@@ -26,13 +31,13 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while building tauri application");
-    
-        // .run(move |_app_handle, event| match event {
-        //     RunEvent::ExitRequested { api, code, .. } => {
-        //         if block_exit_clone.load(Ordering::SeqCst) && code.is_none() {
-        //             api.prevent_exit();
-        //         }
-        //     }
-        //     _ => {}
-        // });
+
+    // .run(move |_app_handle, event| match event {
+    //     RunEvent::ExitRequested { api, code, .. } => {
+    //         if block_exit_clone.load(Ordering::SeqCst) && code.is_none() {
+    //             api.prevent_exit();
+    //         }
+    //     }
+    //     _ => {}
+    // });
 }
