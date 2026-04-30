@@ -119,6 +119,7 @@ export default function Index() {
   });
 
   const navigateToChannel = async (channelId: string) => {
+    if (!channelId || channelId.length === 0) return;
     setState((prev) => ({
       currentChannel: channelId,
       channels: prev.channels.map((ch) =>
