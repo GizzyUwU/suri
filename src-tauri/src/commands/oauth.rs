@@ -10,10 +10,11 @@ pub async fn handle_auth(app_handle: AppHandle, url: String) -> Result<String, S
     (async () => {
         if (window.__configPollRunning) return;
         window.__configPollRunning = true;
-      let attempts = 0;
-      const poll = setInterval(async () => {
+        let attempts = 0;
+        const poll = setInterval(async () => {
         const localConfig = localStorage.getItem("localConfig_v2");
-        if (attempts > 300) { clearInterval(poll); return; } 
+        attempts++;
+        if (attempts > 50) { clearInterval(poll); return; } 
         if (!localConfig) return console.log("Couldn't find local config!");
         console.log("Found local config!");
         const invoke = window.__TAURI__.core.invoke;
