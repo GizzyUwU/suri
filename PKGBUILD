@@ -8,8 +8,8 @@ license=('MIT')
 depends=('cairo' 'desktop-file-utils' 'gdk-pixbuf2' 'glib2' 'gtk3' 'hicolor-icon-theme' 'libsoup' 'pango' 'webkit2gtk-4.1')
 options=('!strip' '!emptydirs')
 install=${pkgname}.install
-source_x86_64=("${url}/releases/download/v${pkgver}/suri_${pkgver}_amd64.deb")
-source_aarch64=("${url}/releases/download/v${pkgver}/suri_${pkgver}_arm64.deb")
+source_x86_64=("${url}/releases/download/app-v${pkgver}/suri_${pkgver}_amd64.deb")
+source_aarch64=("${url}/releases/download/app-v${pkgver}/suri_${pkgver}_arm64.deb")
 sha256sums_x86_64=('SKIP')
 sha256sums_aarch64=('SKIP')
 
