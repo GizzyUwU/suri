@@ -42,6 +42,6 @@
     "keyring:allow-get-password",
     "keyring:allow-set-password",
     "keyring:allow-delete-password",
-    "log:default"
+    "log:allow-log"
   ]
 }
