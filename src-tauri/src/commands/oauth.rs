@@ -17,8 +17,8 @@ pub async fn handle_auth(app_handle: tauri::AppHandle, url: String) -> Result<St
 (async () => {
   const poll = setInterval(async () => {
     const localConfig = localStorage.getItem("localConfig_v2");
-    if (!localConfig) return window.__TAURI__.log.info("Couldn't find local config!")
-    window.__TAURI__.log.info("Found local config!")
+    if (!localConfig) return console.log("Couldn't find local config!")
+    console.log("Found local config!")
     const invoke = window.__TAURI__.core.invoke;
     const result = await invoke("handle_config", { data: { localConfig } });
 
