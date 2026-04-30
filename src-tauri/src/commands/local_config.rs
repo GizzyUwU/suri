@@ -6,6 +6,8 @@ pub async fn handle_config(
     app: AppHandle,
     data: std::collections::HashMap<String, String>,
 ) -> Result<String, String> {
+    log::info!("Im queer");
+    
     if let Some(local_config) = data.get("localConfig") {
         log::info!("Received the local config data");
         let _ = app.emit_to("main", "slack-local-config", local_config);

@@ -20,20 +20,20 @@ pub async fn handle_auth(app_handle: AppHandle, url: String) -> Result<String, S
         const invoke = window.__TAURI__.core.invoke;
         const result = await invoke("handle_config", { data: { localConfig } });
         if (result === "data_received") clearInterval(poll);
-      }, 200);
+      }, 300);
     })();
     "#;
 
     WebviewWindowBuilder::new(&app_handle, "oauth", WebviewUrl::External(parsed_url))
         .initialization_script(SCRAPING_SCRIPT)
+        .on_page_load(|webview, _| {
+            let _ = webview.eval(SCRAPING_SCRIPT);
+        })
         .on_navigation({
             let app_handle = app_handle.clone();
             move |nav_url| {
                 if nav_url.host_str().is_some_and(|h| h.ends_with("slack.com")) {
                     if let Some(webview) = app_handle.get_webview_window("oauth") {
-                        if let Some(w) = app_handle.get_webview_window("oauth") {
-                            let _ = w.eval(SCRAPING_SCRIPT);
-                        }
                         if let Ok(cookies) = webview.cookies() {
                             if let Some(d_cookie) = cookies.iter().find(|c| c.name() == "d") {
                                 log::info!("Found d cookie, emitting to main");
