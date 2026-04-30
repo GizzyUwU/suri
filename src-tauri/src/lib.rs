@@ -27,7 +27,8 @@ pub fn run() {
             commands::oauth::handle_auth,
             commands::local_config::handle_config,
             commands::sys::sys_user,
-            commands::reload::reload_window
+            commands::reload::reload_window,
+            commands::oauth::close_oauth
         ])
         .run(tauri::generate_context!())
         .expect("error while building tauri application");

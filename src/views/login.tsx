@@ -22,68 +22,55 @@ export default function Login() {
   const [url, setUrl] = createSignal<string>("");
 
   onMount(async () => {
-    const user: {
-      uid: number;
-      name: string;
-      primary_group: number;
-    } = await window.__TAURI__.core.invoke("sys_user");
-
-    let key = await getPassword("suri", user.name);
-    if (!key) {
-      const genKey = await crypto.subtle.generateKey(
-        {
-          name: "AES-GCM",
-          length: 256,
-        },
-        true,
-        ["encrypt", "decrypt"],
-      );
-
-      const rawKey = await crypto.subtle.exportKey("raw", genKey);
-      const hexKey = Array.from(new Uint8Array(rawKey))
-        .map((b) => b.toString(16).padStart(2, "0"))
-        .join("");
-
-      setPassword("suri", user.name, hexKey);
-      key = hexKey;
-    }
-
-    const store = await SafeStore.use(key, user.name);
-    setData(store);
-    if ((store?.get("d-token") && store?.get("d-token").length > 0) && (store?.get("lConfig") && store.get("lConfig").length > 0)) {
-      const dToken = data()?.get("d-token");
-      const lConfig = data()?.get("lConfig");
-      setLocalConfig(lConfig);
-      setTokenStore(dToken);
-      return nav("/authed", {
-        replace: true
+      const user: { uid: number; name: string; primary_group: number } =
+        await window.__TAURI__.core.invoke("sys_user");
+  
+      let key = await getPassword("suri", user.name);
+      if (!key) {
+        const genKey = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]);
+        const rawKey = await crypto.subtle.exportKey("raw", genKey);
+        const hexKey = Array.from(new Uint8Array(rawKey)).map((b) => b.toString(16).padStart(2, "0")).join("");
+        setPassword("suri", user.name, hexKey);
+        key = hexKey;
+      }
+  
+      const store = await SafeStore.use(key, user.name);
+      setData(store);
+  
+      if (store?.get("d-token")?.length > 0 && store?.get("lConfig")?.length > 0) {
+        setLocalConfig(store.get("lConfig"));
+        setTokenStore(store.get("d-token"));
+        return nav("/authed", { replace: true });
+      }
+  
+      if (localConf() && token()) {
+        return nav("/authed", { replace: true });
+      }
+  
+      const appWebview = getCurrentWebviewWindow();
+  
+      const tryNavigate = async () => {
+        if (!token() || !localConf()) return;
+        await window.__TAURI__.core.invoke("close_oauth").catch(() => {});
+        data()?.set("d-token", token());
+        data()?.set("lConfig", localConf());
+        await data()?.save();
+        nav("/authed", { replace: true });
+      };
+  
+      // localStorage path — config arrives first, waits for cookie
+      appWebview.once<string>("slack-local-config", (event) => {
+        setLocalConfig(event.payload);
+        tryNavigate();
       });
-    }
-
-    if (localConf() && token()) {
-      console.log("a")
-      return nav("/authed", {
-        replace: true
-      })
-    }
-    const appWebview = getCurrentWebviewWindow();
-    await appWebview.once<string>("slack-local-config", (event) => {
-      setLocalConfig(event.payload);
-      const check = setInterval(async () => {
-        if (token()) {
-          clearInterval(check);
-          data()?.set("d-token", token());
-          data()?.set("lConfig", event.payload);
-          await data()?.save();
-          console.log("b");
-          return nav("/authed", {
-            replace: true,
-          });
-        }
-      }, 500);
+  
+      // Cookie path — token arrives first, waits for config
+      appWebview.once<string>("slack-auth-cookie", (event) => {
+        setTokenStore(event.payload);
+        tryNavigate();
+      });
     });
-  });
-
+  
   return (
     <div class="w-screen h-screen bg-ctp-base text-white">
       <div class="text-center">
