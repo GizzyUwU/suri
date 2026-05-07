@@ -35,6 +35,7 @@
 ### Prerequisites
 
 - BunJS
+- SCCache
 - Cargo
 
 ### Installation
@@ -43,11 +44,6 @@
 
 ```sh
 git clone https://github.com/gizzyuwu.git
-```
-
-2. Install SCCache
-```sh
-paru -S sccache
 ```
 
 2. Install NPM packages
