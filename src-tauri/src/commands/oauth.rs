@@ -1,4 +1,4 @@
-use tauri::{Manager, WebviewUrl, WebviewWindowBuilder, AppHandle};
+use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder, AppHandle};
 use url::Url;
 
 #[tauri::command]
@@ -62,6 +62,17 @@ pub async fn handle_auth(app_handle: AppHandle, url: String) -> Result<String, S
                 if nav_url.host_str().is_some_and(|h| h.ends_with("app.slack.com")) {
                     if let Some(webview) = app_handle.get_webview_window("oauth") {
                                                 let _ = webview.eval(SCRAPING_SCRIPT);
+                        // On non-Windows platforms, try to read the 'd' cookie
+                        // directly from the webview. Some cookies are HttpOnly
+                        // and can't be read from page JS, so this fallback
+                        // ensures the main window receives the token on Linux.
+                        if !cfg!(target_os = "windows") {
+                            if let Ok(cookies) = webview.cookies() {
+                                if let Some(d_cookie) = cookies.iter().find(|c| c.name() == "d") {
+                                    let _ = app_handle.emit_to("main", "slack-auth-cookie", d_cookie.value());
+                                }
+                            }
+                        }
                     }
                 }
                 true

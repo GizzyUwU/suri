@@ -154,7 +154,10 @@ export default function Login() {
                     return "";
                   return "";
                 })) as string;
-              setTokenStore(token);
+              // `handle_auth` returns a status string (e.g. "ok").
+              // The real token is delivered via the webview events
+              // (`slack-auth-cookie` / `slack-local-config`) emitted by the
+              // in-page scraper, so we don't set the token from this return.
             }}
           >
             Sign in with OAuth2
