@@ -23,12 +23,20 @@
 <details open>
   <summary>Table of Contents</summary>
   <ol>
+      <li><a href="#why-not-windows-or-mac?">Why not Windows or Mac?</a></li>
     <li>
       <a href="#getting-started">Getting Started</a>
     </li>
     <li><a href="#license">License</a></li>
   </ol>
 </details>
+
+## Why not Windows or Mac?
+For a mac simply to put it I don't got a mac to test why it won't work so I can't distribute a software that I can not fix.
+
+Windows on the other hand I am trying to resolve issues with the OAuth that's why there is a build for windows but no working build for windows at the moment as i'm trying to resolve as I am mainly a linux user not a windows user.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## Getting Started
 
