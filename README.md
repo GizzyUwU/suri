@@ -23,7 +23,7 @@
 <details open>
   <summary>Table of Contents</summary>
   <ol>
-      <li><a href="#why-not-windows-or-mac?">Why not Windows or Mac?</a></li>
+      <li><a href="#why-not-windows-or-mac">Why not Windows or Mac?</a></li>
     <li>
       <a href="#getting-started">Getting Started</a>
     </li>
