@@ -3,7 +3,7 @@
 <br />
 <div align="center">
   <a href="https://github.com/gizzyuwu/suri">
-    <img src="public/suri.svg" alt="Suri" width="80" height="80">
+    <img src="public/suri.svg" alt="Suri" width="128" height="128">
   </a>
   <h3 align="center">Suri</h3>
   <p align="center">
