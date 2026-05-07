@@ -1,5 +1,4 @@
-use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder, AppHandle};
-use tauri_plugin_log::log;
+use tauri::{Manager, WebviewUrl, WebviewWindowBuilder, AppHandle};
 use url::Url;
 
 #[tauri::command]
@@ -10,16 +9,48 @@ pub async fn handle_auth(app_handle: AppHandle, url: String) -> Result<String, S
     (async () => {
         if (window.__configPollRunning) return;
         window.__configPollRunning = true;
-      let attempts = 0;
-      const poll = setInterval(async () => {
-        const localConfig = localStorage.getItem("localConfig_v2");
-        if (attempts > 300) { clearInterval(poll); return; } 
-        if (!localConfig) return console.log("Couldn't find local config!");
-        console.log("Found local config!");
-        const invoke = window.__TAURI__.core.invoke;
-        const result = await invoke("handle_config", { data: { localConfig } });
-        if (result === "data_received") clearInterval(poll);
-      }, 100);
+                window.__oauthConfigSent = window.__oauthConfigSent ?? false;
+                window.__oauthCookieSent = window.__oauthCookieSent ?? false;
+
+            const readLocalConfig = () => {
+                return (
+                    localStorage.getItem("localConfig_v2") ||
+                    localStorage.getItem("localStorageData") ||
+                    localStorage.getItem("localConfig")
+                );
+            };
+
+            const readCookie = (name) => {
+                return document.cookie
+                    .split("; ")
+                    .find((cookie) => cookie.startsWith(name + "="))
+                    ?.slice(name.length + 1);
+            };
+
+            const poll = setInterval(async () => {
+                const localConfig = readLocalConfig();
+                const dCookie = readCookie("d");
+                const invoke = window.__TAURI__?.core?.invoke;
+                if (!invoke) return;
+
+                if (localConfig && !window.__oauthConfigSent) {
+                    await invoke("handle_config", {
+                        data: { localConfig },
+                    });
+                    window.__oauthConfigSent = true;
+                }
+
+                if (dCookie && !window.__oauthCookieSent) {
+                    await invoke("handle_config", {
+                        data: { cookie: dCookie },
+                    });
+                    window.__oauthCookieSent = true;
+                }
+
+                if (window.__oauthConfigSent && window.__oauthCookieSent) {
+                    clearInterval(poll);
+                }
+            }, 150);
     })();
     "#;
 
@@ -30,16 +61,7 @@ pub async fn handle_auth(app_handle: AppHandle, url: String) -> Result<String, S
             move |nav_url| {
                 if nav_url.host_str().is_some_and(|h| h.ends_with("app.slack.com")) {
                     if let Some(webview) = app_handle.get_webview_window("oauth") {
-                        if let Some(w) = app_handle.get_webview_window("oauth") {
-                            let _ = w.eval(SCRAPING_SCRIPT);
-                        }
-                        if let Ok(cookies) = webview.cookies() {
-                            if let Some(d_cookie) = cookies.iter().find(|c| c.name() == "d") {
-                                log::info!("Found d cookie, emitting to main");
-                                let _ = app_handle.emit_to("main", "slack-auth-cookie", d_cookie.value());
-                                // let _ = webview.close();
-                            }
-                        }
+                                                let _ = webview.eval(SCRAPING_SCRIPT);
                     }
                 }
                 true
