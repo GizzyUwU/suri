@@ -7,7 +7,7 @@
   </a>
   <h3 align="center">Suri</h3>
   <p align="center">
-      A custom desktop client for slack buint with SolidJS and Tauri
+      A custom desktop client for Slack built with SolidJS and Tauri
     <br />
     <br />
     <a href="https://github.com/GizzyUwU/suri/releases/latest">Latest Release</a>
