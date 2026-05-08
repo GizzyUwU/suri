@@ -7,8 +7,23 @@ pub async fn handle_auth(app_handle: AppHandle, url: String) -> Result<String, S
 
     const SCRAPING_SCRIPT: &str = r#"
     (async () => {
-        if (window.__configPollRunning) return;
+        console.log("test", location.hostname, window.location.href)
         if (!location.hostname || !location.hostname.endsWith("app.slack.com")) return;
+        console.log("Passed first loc check")
+        async function WaitForTauriInternals() {
+            await new Promise((resolve) => {
+                const checkInterval = setInterval(() => {
+                if ('__TAURI_INTERNALS__' in window) {
+                    clearInterval(checkInterval);
+                    resolve();
+                }
+            }, 10);
+          });
+        }
+
+        await WaitForTauriInternals();
+        if (window.__configPollRunning) return;
+        console.log("Passed config poll running", window.location.href)
         window.__configPollRunning = true;
         window.__oauthConfigSent = window.__oauthConfigSent ?? false;
         window.__oauthCookieSent = window.__oauthCookieSent ?? false;
@@ -30,12 +45,14 @@ pub async fn handle_auth(app_handle: AppHandle, url: String) -> Result<String, S
 
         const poll = setInterval(async () => {
             if (!location.hostname || !location.hostname.endsWith("app.slack.com")) return;
+            console.log("I passed loc check")
             const localConfig = readLocalConfig();
             const dCookie = readCookie("d");
             const invoke = window.__TAURI__?.core?.invoke;
             if (!invoke) return;
-
+            console.log("Passed invoke check")
             if (localConfig && !window.__oauthConfigSent) {
+                console.log("Passed localConfig and oauth config sent")
                 await invoke("handle_config", {
                     data: { localConfig },
                 });
@@ -63,7 +80,7 @@ pub async fn handle_auth(app_handle: AppHandle, url: String) -> Result<String, S
             move |nav_url| {
                 if nav_url.host_str().is_some_and(|h| h.ends_with("app.slack.com")) {
                     if let Some(webview) = app_handle.get_webview_window("oauth") {
-                        let _ = webview.eval(SCRAPING_SCRIPT);
+                        // let _ = webview.eval(SCRAPING_SCRIPT);
                         // Fallback for HttpOnly cookie visibility: page JS may
                         // not see `d`, but the webview cookie store can.
                         if let Ok(cookies) = webview.cookies() {
