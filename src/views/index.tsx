@@ -1,6 +1,14 @@
 import { Slack } from "../lib/slacktism";
-import { onMount, createSignal, Show, For, createMemo, Suspense, lazy } from "solid-js";
-import { makeObjectStorage, makePersisted } from "@solid-primitives/storage";
+import {
+  onMount,
+  createSignal,
+  Show,
+  For,
+  createMemo,
+  Suspense,
+  lazy,
+} from "solid-js";
+import { makePersisted } from "@solid-primitives/storage";
 import { useNavigate } from "@solidjs/router";
 import { createStore } from "solid-js/store";
 import type * as SlackT from "../lib/slack";
@@ -8,7 +16,6 @@ const Chat = lazy(() => import("../components/chat"));
 import "../css/index.css";
 import { SafeStore } from "../lib/safeStore";
 import { getPassword } from "tauri-plugin-keyring-api";
-import { tauriStorage } from "@solid-primitives/storage/tauri";
 import { App } from "slack.ts";
 import type {
   ClientCountsResponse,
@@ -16,6 +23,7 @@ import type {
 } from "slack-undoc-client";
 import backgroundThings from "../lib/background";
 import { ConversationsHistoryResponse } from "@slack/web-api";
+import { LoginContext, WorkspaceConfig } from "./login.d";
 
 function orderSections(sections: any) {
   const map = new Map();
@@ -97,26 +105,19 @@ export type StateType = {
 
 export default function Index() {
   const nav = useNavigate();
-  const [_, setSafeData] = createSignal<SafeStore | null>(null);
-  const [persist, setPersist] = makePersisted(
-    createStore<PersistState>({
-      lastActiveChannel: undefined,
-    }),
+  const [safeData, setSafeData] = createSignal<SafeStore | null>(null);
+  const [teamData] = makePersisted(createSignal<WorkspaceConfig | null>(null), {
+    name: "teamData",
+    storage: sessionStorage,
+  });
+
+  const [loginContext] = makePersisted(
+    createSignal<LoginContext | null>(null),
     {
-      storage: makeObjectStorage(tauriStorage("testonskibidi")),
-      name: "persistCache",
+      name: "login_context",
+      storage: sessionStorage,
     },
   );
-
-  const [token] = makePersisted(createSignal<string>(""), {
-    name: "d-token",
-    storage: sessionStorage,
-  });
-
-  const [localConfig] = makePersisted(createSignal<string>(""), {
-    name: "localConfig",
-    storage: sessionStorage,
-  });
 
   const navigateToChannel = async (channelId: string) => {
     if (!channelId || channelId.length === 0) return;
@@ -129,10 +130,8 @@ export default function Index() {
       ),
     }));
 
-    setPersist((prev) => ({
-      ...prev,
-      lastActiveChannel: channelId,
-    }));
+    safeData()?.set("lastActiveChannel", channelId);
+    safeData()?.save();
     saveSidebarCache({
       teamId: state.localData.lastActiveTeamId,
       channels: state.channels,
@@ -193,7 +192,7 @@ export default function Index() {
   );
 
   onMount(async () => {
-    if (!token() || !localConfig()) return nav("/");
+    if (!loginContext().xoxd || !teamData()) return nav("/");
 
     const user = await window.__TAURI__.core.invoke<{
       uid: number;
@@ -205,36 +204,38 @@ export default function Index() {
     setState("cacheStore", await SafeStore.use(key, user.name, "cache-"));
     setSafeData(store);
 
-    const data = JSON.parse(localConfig());
+    const data = teamData();
     setState("localData", data);
-    const { lastActiveTeamId } = data;
-    const workspace = data.teams[lastActiveTeamId];
 
-    const cachedSidebar = await loadSidebarCache(lastActiveTeamId);
+    const cachedSidebar = await loadSidebarCache(data.id);
     if (cachedSidebar) {
       setState({
         channels: cachedSidebar.channels,
         sections: cachedSidebar.sections,
         expandedSections: cachedSidebar.expandedSections,
         currentChannel:
-          persist.lastActiveChannel ?? cachedSidebar.lastChannel ?? "",
+          (await store.get("lastActiveChannel")) ??
+          cachedSidebar.lastChannel ??
+          "",
         isBooting: false,
       });
     }
 
-    let url = workspace.url
+    let url = data.url
       .trim()
       .replace(/^(?!https?:\/\/)/i, "https://")
       .replace(/\/$/, "");
-    const client = new Slack(url, workspace.token, token());
+    const client = new Slack(url, data.token, loginContext().xoxd);
     const app = new App({
       receiver: { type: "rtm" },
-      token: { cookie: token(), token: workspace.token },
+      token: { cookie: loginContext().xoxd, token: data.token },
     });
     await app.start();
     setState("client", app);
     const currentChannel =
-      persist.lastActiveChannel ?? state.currentChannel ?? "";
+      ((await store.get("lastActiveChannel")) as string) ??
+      state.currentChannel ??
+      "";
     navigateToChannel(currentChannel);
 
     const [userBoot, sectionsRaw] = await Promise.all([
@@ -266,7 +267,7 @@ export default function Index() {
     });
 
     const sidebarSnapshot = () => ({
-      teamId: lastActiveTeamId,
+      teamId: data.id,
       channels: state.channels,
       sections: state.sections,
       expandedSections: state.expandedSections,

@@ -32,6 +32,7 @@ tauri-plugin-store = "2"
 tauri-plugin-log = "2"
 log = "0.4.29"
 whoami = "2.1.2"
+tauri-plugin-clipboard-manager = "2"
 
 [profile.dev]
 incremental = true

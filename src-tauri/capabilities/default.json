@@ -2,13 +2,8 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Capability for the main window",
-  "webviews": [
-    "oauth"
-  ],
-  "windows": [
-    "main",
-    "oauth"
-  ],
+  "webviews": ["oauth"],
+  "windows": ["main", "oauth"],
   "permissions": [
     "core:default",
     "opener:default",
@@ -42,6 +37,7 @@
     "keyring:allow-get-password",
     "keyring:allow-set-password",
     "keyring:allow-delete-password",
-    "log:allow-log"
+    "log:allow-log",
+    "clipboard-manager:allow-write-text"
   ]
 }
