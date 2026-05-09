@@ -308,7 +308,7 @@ export default function Login() {
               if (!u.pathname.endsWith("/sso/saml/start")) {
                 u.pathname = u.pathname.replace(/\/$/, "") + "/sso/saml/start";
               }
-              const token = (await window.__TAURI__.core
+             await window.__TAURI__.core
                 .invoke("handle_auth", {
                   url: u.toString(),
                 })
@@ -316,11 +316,7 @@ export default function Login() {
                   if (!err.message.includes("Couldn't find callback id"))
                     return "";
                   return "";
-                })) as string;
-              // `handle_auth` returns a status string (e.g. "ok").
-              // The real token is delivered via the webview events
-              // (`slack-auth-cookie` / `slack-local-config`) emitted by the
-              // in-page scraper, so we don't set the token from this return.
+                })
             }}
           >
             Sign in with OAuth2
