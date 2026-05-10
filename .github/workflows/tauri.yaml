@@ -76,11 +76,6 @@ jobs:
             librsvg2-dev \
             patchelf
 
-
-      - name: Install jq (macOS)
-        if: startsWith(matrix.platform, 'macos')
-        run: brew install jq
-
       - uses: oven-sh/setup-bun@v2
 
       - name: install Rust stable
@@ -135,7 +130,10 @@ jobs:
           
       - name: Get version from package.json
         id: package_version
-        run: echo "VERSION=$(jq -r .version package.json)" >> $GITHUB_ENV
+        shell: bash
+        run: |
+          VERSION=$(bun -e "console.log((await import('./package.json', { assert: { type: 'json' } })).default.version)")
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
 
       - name: Sync versions
         run: bun scripts/sync.mjs
