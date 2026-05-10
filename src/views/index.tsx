@@ -309,7 +309,7 @@ export default function Index() {
   }
 
   return (
-    <div class="w-screen h-screen bg-ctp-base text-white">
+    <div class="w-screen h-screen bg-ctp-base dark:text-white">
       <aside class="fixed h-full left-0 z-40 w-16 block transition-transform -translate-x-full sm:translate-x-0 border-r border-dashed"></aside>
       <aside
         id="channels"

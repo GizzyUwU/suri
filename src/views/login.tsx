@@ -244,7 +244,7 @@ export default function Login() {
   };
 
   return (
-    <div class="w-screen min-h-screen h-full bg-ctp-base text-white">
+    <div class="w-screen min-h-screen h-full bg-ctp-base dark:text-white">
       <div class="text-center">
         <div class="pt-16"></div>
         <div style={{ display: "inline-flex", "align-items": "center" }}>
