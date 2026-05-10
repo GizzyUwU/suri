@@ -18,7 +18,7 @@ jobs:
     steps:
       - name: Install required tools
         run: |
-          pacman -Sy --noconfirm base-devel git nodejs npm
+          pacman -Sy --noconfirm base-devel git nodejs npm pacman-contrib
 
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -47,7 +47,7 @@ jobs:
 
       - name: Generate .SRCINFO
         run: |
-          makepkg --printsrcinfo > .SRCINFO
+          runuser -u nobody -- makepkg --printsrcinfo > .SRCINFO
 
       - name: Commit changes
         uses: stefanzweifel/git-auto-commit-action@v7
