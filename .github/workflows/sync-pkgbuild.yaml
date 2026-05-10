@@ -60,5 +60,5 @@ jobs:
       - name: Commit changes
         uses: stefanzweifel/git-auto-commit-action@v7
         with:
+          repository: /home/builder/repo
           commit_message: "chore: sync PKGBUILD version + update .SRCINFO"
-          push_options: --force
