@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - main
+    paths:
+      - '**'
+      - '!.github/workflows/**'
+      - '.github/workflows/sync-pkgbuild.yml'
 
 permissions:
   contents: write
@@ -18,7 +22,12 @@ jobs:
     steps:
       - name: Install required tools
         run: |
-          pacman -Sy --noconfirm base-devel git nodejs npm pacman-contrib
+          pacman -Sy --noconfirm base-devel git nodejs npm pacman-contrib sudo
+
+      - name: Create builder user
+        run: |
+          useradd -m builder
+          echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -26,28 +35,27 @@ jobs:
           ref: ${{ github.head_ref }}
           token: ${{ secrets.GH_PAT }}
           persist-credentials: true
+          path: repo
+
+      - name: Fix permissions
+        run: |
+          mv repo /home/builder/repo
+          chown -R builder:builder /home/builder/repo
 
       - name: Get package.json version
         id: pkgjson
         run: |
-          VERSION=$(node -p "require('./package.json').version")
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-      - name: Get PKGBUILD version
-        id: pkgbuild
-        run: |
-          VERSION=$(grep '^pkgver=' PKGBUILD | cut -d= -f2)
+          VERSION=$(sudo -u builder node -p "require('/home/builder/repo/package.json').version")
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Sync PKGBUILD version
         run: |
-          PKGJSON_VERSION="${{ steps.pkgjson.outputs.version }}"
-
-          sed -i "s/^pkgver=.*/pkgver=$PKGJSON_VERSION/" PKGBUILD
+          VERSION="${{ steps.pkgjson.outputs.version }}"
+          sudo -u builder bash -c "sed -i 's/^pkgver=.*/pkgver=$VERSION/' /home/builder/repo/PKGBUILD"
 
       - name: Generate .SRCINFO
         run: |
-          runuser -u nobody -- makepkg --printsrcinfo > .SRCINFO
+          sudo -u builder bash -c "cd /home/builder/repo && makepkg --printsrcinfo > .SRCINFO"
 
       - name: Commit changes
         uses: stefanzweifel/git-auto-commit-action@v7
