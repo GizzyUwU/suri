@@ -32,7 +32,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
         with:
-          ref: ${{ github.head_ref }}
+          ref: main
           token: ${{ secrets.GH_PAT }}
           persist-credentials: true
           path: repo
@@ -41,6 +41,8 @@ jobs:
         run: |
           mv repo /home/builder/repo
           chown -R builder:builder /home/builder/repo
+          git config --global --add safe.directory /home/builder/repo
+        
 
       - name: Get package.json version
         id: pkgjson
