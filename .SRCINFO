@@ -1,11 +1,10 @@
 pkgbase = suri
 	pkgdesc = Suri the custom slack client
-	pkgver = 1.0.2
+	pkgver = 1.1.0
 	pkgrel = 1
 	url = https://github.com/gizzyuwu/suri
 	install = suri.install
 	arch = x86_64
-	arch = aarch64
 	license = MIT
 	depends = cairo
 	depends = desktop-file-utils
@@ -18,9 +17,7 @@ pkgbase = suri
 	depends = webkit2gtk-4.1
 	options = !strip
 	options = !emptydirs
-	source_x86_64 = https://github.com/gizzyuwu/suri/releases/download/app-v1.0.2/suri_1.0.2_amd64.deb
+	source_x86_64 = https://github.com/gizzyuwu/suri/releases/download/app-v1.1.0/suri_1.1.0_amd64.deb
 	sha256sums_x86_64 = SKIP
-	source_aarch64 = https://github.com/gizzyuwu/suri/releases/download/app-v1.0.2/suri_1.0.2_arm64.deb
-	sha256sums_aarch64 = SKIP
 
 pkgname = suri

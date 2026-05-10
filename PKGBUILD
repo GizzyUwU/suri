@@ -1,5 +1,5 @@
 pkgname=suri
-pkgver=1.0.2
+pkgver=1.1.0
 pkgrel=1
 pkgdesc="Suri the custom slack client"
 arch=('x86_64')
