@@ -18,7 +18,7 @@ jobs:
     steps:
       - name: Install required tools
         run: |
-          pacman -Sy --noconfirm base-devel git
+          pacman -Sy --noconfirm base-devel git nodejs npm
 
       - name: Checkout repository
         uses: actions/checkout@v5
