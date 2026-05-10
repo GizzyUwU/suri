@@ -12,18 +12,20 @@ jobs:
   sync-version:
     runs-on: ubuntu-latest
 
+    container:
+      image: archlinux:latest
+
     steps:
+      - name: Install required tools
+        run: |
+          pacman -Sy --noconfirm base-devel git
+
       - name: Checkout repository
         uses: actions/checkout@v5
         with:
           ref: ${{ github.head_ref }}
           token: ${{ secrets.GH_PAT }}
           persist-credentials: true
-
-      - name: Install build tools (Arch env for makepkg)
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y base-devel git
 
       - name: Get package.json version
         id: pkgjson
@@ -37,21 +39,11 @@ jobs:
           VERSION=$(grep '^pkgver=' PKGBUILD | cut -d= -f2)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Sync PKGBUILD version if needed
+      - name: Sync PKGBUILD version
         run: |
           PKGJSON_VERSION="${{ steps.pkgjson.outputs.version }}"
-          PKGBUILD_VERSION="${{ steps.pkgbuild.outputs.version }}"
 
-          echo "package.json version: $PKGJSON_VERSION"
-          echo "PKGBUILD version: $PKGBUILD_VERSION"
-
-          if [ "$PKGJSON_VERSION" != "$PKGBUILD_VERSION" ]; then
-            echo "Updating PKGBUILD pkgver..."
-
-            sed -i "s/^pkgver=.*/pkgver=$PKGJSON_VERSION/" PKGBUILD
-          else
-            echo "Versions already match"
-          fi
+          sed -i "s/^pkgver=.*/pkgver=$PKGJSON_VERSION/" PKGBUILD
 
       - name: Generate .SRCINFO
         run: |
