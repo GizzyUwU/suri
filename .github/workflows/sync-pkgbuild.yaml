@@ -1,0 +1,64 @@
+name: Sync PKGBUILD version
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  sync-version:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.head_ref }}
+          token: ${{ secrets.GH_PAT }}
+          persist-credentials: true
+
+      - name: Install build tools (Arch env for makepkg)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y base-devel git
+
+      - name: Get package.json version
+        id: pkgjson
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Get PKGBUILD version
+        id: pkgbuild
+        run: |
+          VERSION=$(grep '^pkgver=' PKGBUILD | cut -d= -f2)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Sync PKGBUILD version if needed
+        run: |
+          PKGJSON_VERSION="${{ steps.pkgjson.outputs.version }}"
+          PKGBUILD_VERSION="${{ steps.pkgbuild.outputs.version }}"
+
+          echo "package.json version: $PKGJSON_VERSION"
+          echo "PKGBUILD version: $PKGBUILD_VERSION"
+
+          if [ "$PKGJSON_VERSION" != "$PKGBUILD_VERSION" ]; then
+            echo "Updating PKGBUILD pkgver..."
+
+            sed -i "s/^pkgver=.*/pkgver=$PKGJSON_VERSION/" PKGBUILD
+          else
+            echo "Versions already match"
+          fi
+
+      - name: Generate .SRCINFO
+        run: |
+          makepkg --printsrcinfo > .SRCINFO
+
+      - name: Commit changes
+        uses: stefanzweifel/git-auto-commit-action@v7
+        with:
+          commit_message: "chore: sync PKGBUILD version + update .SRCINFO"
+          push_options: --force

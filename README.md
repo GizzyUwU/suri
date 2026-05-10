@@ -36,6 +36,16 @@ For a mac simply to put it I don't got a mac to test why it won't work so I can'
 
 Windows on the other hand I am trying to resolve issues with the OAuth that's why there is a build for windows but no working build for windows at the moment as i'm trying to resolve as I am mainly a linux user not a windows user.
 
+
+## Use Arch Linux? Follow this!
+Since there is no packaged appimage, arch users need to use a slightly more complex method to install but its still pretty easy. Just run the commands below and it should install fine!
+
+```bash
+git clone https://github.com/gizzyuwu/suri.git
+cd suri
+makepkg -si
+```
+
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## Getting Started
