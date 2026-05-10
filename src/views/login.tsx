@@ -36,7 +36,6 @@ export default function Login() {
         import("solid-prism-editor/setups"),
       ]);
 
-      // Load Prism grammars in explicit dependency order.
       await import("solid-prism-editor/prism/languages/javascript");
       await import("solid-prism-editor/prism/languages/jsx");
       await import("solid-prism-editor/prism/languages/json");
@@ -379,7 +378,7 @@ export default function Login() {
             fallback={
               <div class="w-4xl mx-auto bg-ctp-mantle text-left rounded overflow-hidden h-130 flex flex-col p-2">
                 <textarea
-                  class="w-full h-full min-h-[520px] bg-transparent outline-none font-mono text-sm resize-none"
+                  class="w-full h-full min-h-130 bg-transparent outline-none font-mono text-sm resize-none"
                   onInput={(e) => setLConfigVal(e.currentTarget.value)}
                   placeholder="Paste the JSON value here"
                 />

@@ -12,7 +12,6 @@ use url::Url;
 pub async fn handle_auth(app_handle: AppHandle, url: String) -> Result<String, String> {
     let parsed_url = Url::parse(&url).map_err(|e| e.to_string())?;
 
-    // If an oauth window is already open, close it before opening a new one.
     if let Some(existing) = app_handle.get_webview_window("oauth") {
         let _ = existing.close();
     }
@@ -33,7 +32,6 @@ pub async fn handle_auth(app_handle: AppHandle, url: String) -> Result<String, S
                         let capture_started = capture_started.clone();
 
                         thread::spawn(move || {
-                            // Delay/retry cookie reads since WebView2 cookie store can lag behind nav.
                             for _ in 0..40 {
                                 if let Some(webview) = app_handle.get_webview_window("oauth") {
                                     if let Ok(cookies) = webview.cookies() {
