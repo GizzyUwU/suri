@@ -1,20 +1,13 @@
-import { createSignal, Show, onMount } from "solid-js";
+import { Component, createEffect, createSignal, Show, onMount } from "solid-js";
+import { Dynamic } from "solid-js/web";
 import { makePersisted } from "@solid-primitives/storage";
 import { useNavigate } from "@solidjs/router";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { SafeStore } from "../lib/safeStore";
 import { getPassword, setPassword } from "tauri-plugin-keyring-api";
 import { fetch } from "@tauri-apps/plugin-http";
-import { Editor } from "solid-prism-editor";
-import { copyButton } from "solid-prism-editor/copy-button";
-import { basicSetup } from "solid-prism-editor/setups";
 import { LoginContext, WorkspaceConfig } from "./login.d";
 import "solid-prism-editor/copy-button.css";
-import "solid-prism-editor/prism/languages/javascript";
-import "solid-prism-editor/prism/languages/jsx";
-import "solid-prism-editor/languages/jsx";
-import "solid-prism-editor/prism/languages/json";
-import "solid-prism-editor/languages/json";
 import "solid-prism-editor/layout.css";
 import "solid-prism-editor/themes/night-owl.css";
 import Suri from "../assets/suri.svg";
@@ -27,6 +20,45 @@ export default function Login() {
   const [url, setUrl] = createSignal<string>("");
   const [teamId, setTeamId] = createSignal<string>("");
   const [lConfigVal, setLConfigVal] = createSignal<string>("");
+  const [EditorComp, setEditorComp] = createSignal<Component<any> | null>(null);
+  const [copyButtonExt, setCopyButtonExt] = createSignal<any | null>(null);
+  const [basicSetupExt, setBasicSetupExt] = createSignal<any | null>(null);
+  const [editorLoadFailed, setEditorLoadFailed] = createSignal(false);
+  let editorLoading = false;
+
+  const loadEditorDependencies = async () => {
+    if (EditorComp() || editorLoadFailed() || editorLoading) return;
+    editorLoading = true;
+    try {
+      const [{ Editor }, copyButtonMod, setupsMod] = await Promise.all([
+        import("solid-prism-editor"),
+        import("solid-prism-editor/copy-button"),
+        import("solid-prism-editor/setups"),
+      ]);
+
+      // Load Prism grammars in explicit dependency order.
+      await import("solid-prism-editor/prism/languages/javascript");
+      await import("solid-prism-editor/prism/languages/jsx");
+      await import("solid-prism-editor/prism/languages/json");
+
+      setEditorComp(() => Editor);
+      setCopyButtonExt(() => copyButtonMod.copyButton);
+      setBasicSetupExt(setupsMod.basicSetup);
+    } catch (err) {
+      console.error("Failed to load editor dependencies", err);
+      setEditorLoadFailed(true);
+      toast.error("Code editor failed to load. Falling back to plain text input.");
+    } finally {
+      editorLoading = false;
+    }
+  };
+
+  createEffect(() => {
+    if (stage() === "localConfig_v2") {
+      void loadEditorDependencies();
+    }
+  });
+
   const [_, setLContext] = makePersisted(
     createSignal<LoginContext | null>(null),
     {
@@ -315,37 +347,61 @@ export default function Login() {
             paste it in the input editor below!
           </p>
           <div class="pt-2"></div>
-          <div class="inline-flex bg-ctp-mantle">
-            <Editor
-              style={{
-                padding: "5px",
-                background: "none",
-              }}
-              language="jsx"
-              value={`JSON.parse(localStorage.localConfig_v2).teams["${teamId().length > 0 ? teamId() : ""}"]`}
-              extensions={[copyButton()]}
-              readOnly={true}
-            />
-          </div>
+          <Show
+            when={EditorComp() && copyButtonExt()}
+            fallback={
+              <div class="inline-flex bg-ctp-mantle rounded px-2 py-2 font-mono text-sm text-left break-all max-w-4xl">
+                {`JSON.parse(localStorage.localConfig_v2).teams["${teamId().length > 0 ? teamId() : ""}"]`}
+              </div>
+            }
+          >
+            <div class="inline-flex bg-ctp-mantle">
+              <Dynamic
+                component={EditorComp() as Component<any>}
+                style={{
+                  padding: "5px",
+                  background: "none",
+                }}
+                language="jsx"
+                value={`JSON.parse(localStorage.localConfig_v2).teams["${teamId().length > 0 ? teamId() : ""}"]`}
+                extensions={[copyButtonExt()()]}
+                readOnly={true}
+              />
+            </div>
+          </Show>
           <div class="pt-4"></div>
           <p class="text-gray-300 text-lg font-bold max-w-2xl mx-auto text-pretty">
             Enter the value here!
           </p>
           <div class="pt-2"></div>
-          <div class="w-4xl mx-auto bg-ctp-mantle text-left rounded overflow-hidden h-130 flex flex-col">
-            <Editor
-              style={{
-                background: "none",
-                "max-height": "520px",
-                overflow: "auto",
-              }}
-              onUpdate={(value) => {
-                setLConfigVal(value);
-              }}
-              language="json"
-              extensions={basicSetup}
-            />
-          </div>
+          <Show
+            when={EditorComp() && basicSetupExt()}
+            fallback={
+              <div class="w-4xl mx-auto bg-ctp-mantle text-left rounded overflow-hidden h-130 flex flex-col p-2">
+                <textarea
+                  class="w-full h-full min-h-[520px] bg-transparent outline-none font-mono text-sm resize-none"
+                  onInput={(e) => setLConfigVal(e.currentTarget.value)}
+                  placeholder="Paste the JSON value here"
+                />
+              </div>
+            }
+          >
+            <div class="w-4xl mx-auto bg-ctp-mantle text-left rounded overflow-hidden h-130 flex flex-col">
+              <Dynamic
+                component={EditorComp() as Component<any>}
+                style={{
+                  background: "none",
+                  "max-height": "520px",
+                  overflow: "auto",
+                }}
+                onUpdate={(value) => {
+                  setLConfigVal(value);
+                }}
+                language="json"
+                extensions={basicSetupExt()}
+              />
+            </div>
+          </Show>
           <div class="pt-4" />
           <button
             class="bg-ctp-surface0 w-96 mx-auto px-4 py-2 rounded font-bold cursor-pointer"
