@@ -4,42 +4,37 @@ import { useNavigate } from "@solidjs/router";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { SafeStore } from "../lib/safeStore";
 import { getPassword, setPassword } from "tauri-plugin-keyring-api";
-import Suri from "../assets/suri.svg";
 import { fetch } from "@tauri-apps/plugin-http";
 import { Editor } from "solid-prism-editor";
-import "solid-prism-editor/copy-button.css";
 import { copyButton } from "solid-prism-editor/copy-button";
-import "solid-prism-editor/languages";
 import { basicSetup } from "solid-prism-editor/setups";
+import { LoginContext, WorkspaceConfig } from "./login.d";
+import "solid-prism-editor/languages";
+import "solid-prism-editor/copy-button.css";
 import "solid-prism-editor/prism/languages/jsx";
 import "solid-prism-editor/languages/jsx";
 import "solid-prism-editor/prism/languages/json";
 import "solid-prism-editor/languages/json";
 import "solid-prism-editor/layout.css";
 import "solid-prism-editor/themes/night-owl.css";
+import Suri from "../assets/suri.svg";
 import toast from "solid-toast";
-import { LoginContext, WorkspaceConfig } from "./login.d";
 
 export default function Login() {
-  window.addEventListener("unload", function () {});
   const nav = useNavigate();
   const [stage, setStage] = createSignal<string>("");
   const [data, setData] = createSignal<SafeStore | null>(null);
   const [url, setUrl] = createSignal<string>("");
   const [teamId, setTeamId] = createSignal<string>("");
   const [lConfigVal, setLConfigVal] = createSignal<string>("");
-  const [token, setTokenStore] = makePersisted(createSignal<string>(""), {
-    name: "d-token",
-    storage: sessionStorage,
-  });
-  const [loginContext, setLContext] = makePersisted(
+  const [_, setLContext] = makePersisted(
     createSignal<LoginContext | null>(null),
     {
-      name: "login_context",
+      name: "loginContext",
       storage: sessionStorage,
     },
   );
-  const [_, setTeam] = makePersisted(
+  const [__, setTeam] = makePersisted(
     createSignal<WorkspaceConfig | null>(null),
     {
       name: "teamData",
@@ -62,7 +57,7 @@ export default function Login() {
       const hexKey = Array.from(new Uint8Array(rawKey))
         .map((b) => b.toString(16).padStart(2, "0"))
         .join("");
-      setPassword("suri", user.name, hexKey);
+      await setPassword("suri", user.name, hexKey);
       key = hexKey;
     }
 
@@ -70,9 +65,9 @@ export default function Login() {
     setData(store);
 
     if (
-      store?.get("login_context") &&
+      await store?.get("login_context") &&
       Object.keys(store?.get("login_context"))?.length > 0 &&
-      store?.get("team_data") &&
+      await store?.get("team_data") &&
       Object.keys(store?.get("team_data"))?.length > 0
     ) {
       setLContext(store.get("login_context"));
@@ -81,21 +76,14 @@ export default function Login() {
       return nav("/authed", { replace: true });
     }
 
-    if (loginContext()) {
-      return nav("/authed", { replace: true });
-    }
-
-    getCurrentWebviewWindow().once<string>(
+    await getCurrentWebviewWindow().once<string>(
       "slack-auth-cookie",
       async (event) => {
-        setTokenStore(event.payload);
-        const headers = new Headers();
-        headers.set("cookie", "d=" + token());
         const res = await fetch(url(), {
           method: "GET",
           redirect: "manual",
           headers: {
-            cookie: "d=" + token(),
+            cookie: "d=" + event.payload,
           },
         });
         const html = await res.text();
@@ -115,7 +103,7 @@ export default function Login() {
         setTeamId(bootData.team_id);
         data()?.set("login_context", {
           xoxc: bootData.api_token,
-          xoxd: token(),
+          xoxd: event.payload,
           user_id: bootData.user_id,
           team_id: bootData.team_id,
           team_url: bootData.team_url,
@@ -124,7 +112,7 @@ export default function Login() {
 
         setLContext({
           xoxc: bootData.api_token,
-          xoxd: token(),
+          xoxd: event.payload,
           user_id: bootData.user_id,
           team_id: bootData.team_id,
           team_url: bootData.team_url,
@@ -137,10 +125,7 @@ export default function Login() {
 
   const handleLocalConfigSubmit = async () => {
     const value = lConfigVal();
-
     try {
-      console.log(value, value.length);
-
       if (typeof value !== "string" || !value.trim() || value.length === 0) {
         return toast.error("Field is empty and yet required!", {
           className: "bg-ctp-surface0 text-red-300",
@@ -148,7 +133,6 @@ export default function Login() {
       }
 
       let parsed: Record<string, any>;
-
       try {
         parsed = JSON.parse(value);
       } catch {
@@ -234,7 +218,7 @@ export default function Login() {
 
       setTeam(parsed as WorkspaceConfig);
       data()?.set("team_data", parsed);
-      data()?.save();
+      await data()?.save();
       nav("/authed", { replace: true });
     } catch (e) {
       toast.error("Unexpected error parsing config", {
@@ -248,7 +232,7 @@ export default function Login() {
       <div class="text-center">
         <div class="pt-16"></div>
         <div style={{ display: "inline-flex", "align-items": "center" }}>
-          <img src={Suri} height={64} width={64} />
+          <img src={Suri} height="64px" width="64px" />
           <span class="font-bold text-4xl">Suri</span>
         </div>
         <Show when={stage().length === 0}>

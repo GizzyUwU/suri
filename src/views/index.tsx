@@ -114,7 +114,7 @@ export default function Index() {
   const [loginContext] = makePersisted(
     createSignal<LoginContext | null>(null),
     {
-      name: "login_context",
+      name: "loginContext",
       storage: sessionStorage,
     },
   );

@@ -4,7 +4,7 @@ import tailwindcss from "@tailwindcss/vite";
 import Icons from "unplugin-icons/vite";
 import { nodePolyfills } from 'vite-plugin-node-polyfills'
 import path from "path";
-import { visualizer } from 'rollup-plugin-visualizer'
+// import { visualizer } from 'rollup-plugin-visualizer'
 const host = process.env.TAURI_DEV_HOST;
 
 // https://vite.dev/config/
@@ -49,7 +49,6 @@ export default defineConfig({
       'async_hooks': path.resolve(__dirname, './src/polyfills/async.ts'),
     }
   },
-  
   clearScreen: false,
   server: {
     port: 1420,
